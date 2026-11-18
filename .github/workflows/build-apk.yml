@@ -1,0 +1,46 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['prices.json']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Bağımlılıkları kur
+        run: npm ci || npm install
+
+      - name: Tip kontrolü
+        run: npx tsc --noEmit
+
+      - name: Android projesini üret
+        run: npx expo prebuild --platform android --no-install
+        env:
+          EXPO_PUBLIC_PRICES_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/prices.json
+
+      - name: APK derle
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx3g"
+        env:
+          EXPO_PUBLIC_PRICES_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/prices.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CaseSim-APK
+          path: android/app/build/outputs/apk/release/*.apk
