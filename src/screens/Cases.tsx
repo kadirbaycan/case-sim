@@ -1,208 +1,483 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import {
-  CASES, CaseDef, Item, Rng, SKINS, TIER_COLOR, TIER_NAME, casePrice, itemName, itemPrice, rollCase, tierWeights, WEARS, wearIndex,
+  CASES, CaseDef, Item, KEY_PRICE, Rng, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
+  rollCase, tierWeights, basePrice,
 } from '../engine/game';
+import { dropPercent, fmtRange, fmtTime, priceRange } from '../engine/extra';
 import { useGame } from '../store/game';
 import { usePrices } from '../store/prices';
+import { useNav } from '../nav';
 import { play, winSfx, haptic } from '../sound';
-import { Btn, C, Chip, ItemCard, money, s } from '../ui';
+import { Reel } from '../components/Reel';
+import { Bar, Btn, Chip, ItemTile, Sheet, Text, money, st, C } from '../ui';
 
 const W = Dimensions.get('window').width;
-const IW = 118; // reel item genişliği
-const WIN_IDX = 54;
-const REEL_LEN = 64;
+const GUT = 12;
+const loaded = new Set<string>();
 
 export default function Cases() {
-  const [sel, setSel] = useState<CaseDef | null>(null);
-  const [q, setQ] = useState('');
+  const caseId = useNav((n) => n.caseId);
+  return caseId ? <CaseDetail key={caseId} id={caseId} /> : <CaseList />;
+}
+
+// ---------------------------------------------------------------- Liste
+type Filter = 'all' | 'free' | 'cheap' | 'pricey' | 'new' | 'fav';
+
+function CaseList() {
   const prices = usePrices((x) => x.p);
-  const list = useMemo(() => CASES.filter((c) => c.name.toLowerCase().includes(q.toLowerCase())), [q]);
-  if (sel) return <OpenCase c={sel} onBack={() => setSel(null)} />;
-  return (
-    <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <TextInput
-        value={q} onChangeText={setQ} placeholder="Kasa ara..." placeholderTextColor={C.dim}
-        style={{ margin: 8, padding: 10, backgroundColor: C.card, color: C.text, borderRadius: 10 }}
-      />
-      <FlatList
-        data={list} numColumns={2} keyExtractor={(c) => c.id} contentContainerStyle={{ padding: 4 }}
-        renderItem={({ item: c }) => (
-          <Pressable onPress={() => setSel(c)} style={[s.card, { alignItems: 'center', paddingVertical: 10 }]}>
-            <Image source={{ uri: c.img }} style={{ width: 110, height: 85 }} contentFit="contain" />
-            <Text style={[s.nm, { textAlign: 'center', minHeight: 0, marginTop: 4 }]}>{c.name}</Text>
-            <Text style={{ color: C.green, fontWeight: '800' }}>{money(casePrice(c, prices))}</Text>
-          </Pressable>
-        )}
-      />
+  const { freeCases, favs, supplyAt, spinDay } = useGame();
+  const claimSupply = useGame((x) => x.claimSupply);
+  const toggleFav = useGame((x) => x.toggleFav);
+  const say = useGame((x) => x.say);
+  const openCase = useNav((n) => n.openCase);
+  const setTab = useNav((n) => n.setTab);
+  const [f, setF] = useState<Filter>('all');
+  const [q, setQ] = useState('');
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+
+  const ready = now >= supplyAt;
+  const freeTotal = Object.values(freeCases).reduce((a, b) => a + Math.max(0, b), 0);
+  const wheelReady = spinDay !== `${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`;
+
+  const list = useMemo(() => {
+    let a = CASES.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
+    if (f === 'free') a = a.filter((c) => (freeCases[c.id] || 0) > 0);
+    if (f === 'fav') a = a.filter((c) => favs.includes(c.id));
+    if (f === 'cheap') a = [...a].sort((x, y) => casePrice(x, prices) - casePrice(y, prices));
+    if (f === 'pricey') a = [...a].sort((x, y) => casePrice(y, prices) - casePrice(x, prices));
+    return a;
+  }, [f, q, freeCases, favs, prices]);
+
+  const cw = (W - GUT * 2) / 3;
+  const header = (
+    <View>
+      <View style={{ flexDirection: 'row', paddingHorizontal: GUT - 4, marginBottom: 10 }}>
+        <QuickTile icon="📦" title="Supply Drop" sub={ready ? 'AL!' : fmtTime(supplyAt - now)} hot={ready}
+          onPress={() => { if (!ready) return say(`Sonraki drop: ${fmtTime(supplyAt - now)}`); claimSupply(); play('coin'); haptic('success'); }} />
+        <QuickTile icon="🎡" title="Günlük Çark" sub={wheelReady ? 'HAZIR!' : 'Yarın'} hot={wheelReady} onPress={() => setTab('store')} />
+        <QuickTile icon="🎁" title="Ücretsiz" sub={freeTotal ? `${freeTotal} kasa` : 'yok'} hot={freeTotal > 0} onPress={() => setF('free')} />
+      </View>
+      <TextInput value={q} onChangeText={setQ} placeholder="Kasa ara…" placeholderTextColor={C.dim}
+        style={{ marginHorizontal: GUT, marginBottom: 8, backgroundColor: C.card, color: C.text, borderRadius: 12, paddingHorizontal: 14, height: 42, fontFamily: C.font, fontSize: 16 }} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: GUT, marginBottom: 8, flexGrow: 0 }}>
+        {([['all', 'Hepsi'], ['free', 'Ücretsiz'], ['cheap', 'Ucuz'], ['pricey', 'Pahalı'], ['new', 'Yeni'], ['fav', '⭐ Favori']] as [Filter, string][]).map(([k, l]) => (
+          <Chip key={k} label={l} on={f === k} onPress={() => setF(k)} />
+        ))}
+      </ScrollView>
     </View>
+  );
+
+  return (
+    <FlatList
+      data={list} numColumns={3} keyExtractor={(c) => c.id} ListHeaderComponent={header}
+      contentContainerStyle={{ paddingHorizontal: GUT - 3, paddingBottom: 20 }}
+      ListEmptyComponent={<Text style={{ color: C.dim, textAlign: 'center', marginTop: 30 }}>Bu filtrede kasa yok.</Text>}
+      renderItem={({ item: c }) => {
+        const free = freeCases[c.id] || 0;
+        return (
+          <Pressable onPress={() => openCase(c.id)} onLongPress={() => toggleFav(c.id)} style={{ width: cw, padding: 3 }}>
+            <View style={{ backgroundColor: C.card, borderRadius: 14, paddingVertical: 8, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: free ? C.green : '#2b3a4d' }}>
+              {free > 0 && <View style={{ position: 'absolute', top: 6, left: 6, zIndex: 2, backgroundColor: '#000a', borderRadius: 6, paddingHorizontal: 6 }}><Text style={{ color: C.green, fontWeight: '700', fontSize: 13 }}>ÜCRETSİZ ×{free}</Text></View>}
+              {favs.includes(c.id) && <Text style={{ position: 'absolute', top: 4, right: 6, zIndex: 2 }}>⭐</Text>}
+              <Image source={{ uri: c.img }} style={{ width: cw - 24, height: cw * 0.72, marginTop: free ? 14 : 0 }} contentFit="contain" />
+              <Text numberOfLines={2} style={{ textAlign: 'center', fontWeight: '700', fontSize: 14, minHeight: 34, paddingHorizontal: 4 }}>{c.name}</Text>
+              <Text style={{ color: free ? C.dim : C.green, fontWeight: '700', fontSize: 15 }}>{money(casePrice(c, prices))}</Text>
+            </View>
+          </Pressable>
+        );
+      }}
+    />
   );
 }
 
-function OpenCase({ c, onBack }: { c: CaseDef; onBack: () => void }) {
+function QuickTile(p: { icon: string; title: string; sub: string; hot?: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={p.onPress} style={{ flex: 1, margin: 4 }}>
+      <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: p.hot ? C.green : C.line }}>
+        <Text style={{ fontSize: 30 }}>{p.icon}</Text>
+        <Text style={{ fontWeight: '700', fontSize: 14 }}>{p.title}</Text>
+        <Text style={{ color: p.hot ? C.green : C.dim, fontWeight: '700', fontSize: 14 }}>{p.sub}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------- Detay
+type ReelDef = { ids: string[]; win: number };
+const REEL_LEN = 42;
+const WIN_AT = 34;
+
+function CaseDetail({ id }: { id: string }) {
+  const c = CASES.find((x) => x.id === id)!;
   const prices = usePrices((x) => x.p);
-  const { balance, fast } = useGame();
+  const g = useGame();
   const open = useGame((x) => x.open);
+  const sell = useGame((x) => x.sell);
   const setOpt = useGame((x) => x.setOpt);
-  const seeds = useGame((x) => x.seeds);
-  const cost = casePrice(c, prices);
+  const setAutoSell = useGame((x) => x.setAutoSell);
+  const say = useGame((x) => x.say);
+
+  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
-  const [reel, setReel] = useState<string[] | null>(null);
-  const [won, setWon] = useState<Item[] | null>(null);
-  const [rareView, setRareView] = useState(false);
-  const x = useRef(new Animated.Value(0)).current;
-  const lastIdx = useRef(-1);
+  const [reels, setReels] = useState<ReelDef[] | null>(null);
+  const [run, setRun] = useState(0);
+  const [pending, setPending] = useState<Item[] | null>(null);
+  const [sheet, setSheet] = useState<{ kept: Item[]; sold: number; soldN: number; free: number } | null>(null);
+  const [selSheet, setSelSheet] = useState<Set<string>>(new Set());
+  const [info, setInfo] = useState<string | null>(null);
+  const [rare, setRare] = useState(false);
+  const [asOpen, setAsOpen] = useState(false);
+  const [load, setLoad] = useState<{ n: number; t: number } | null>(loaded.has(id) ? null : { n: 0, t: 1 });
+  const doneCount = useRef(0);
+  const infoRef = useRef<{ items: Item[]; free: number; n: number } | null>(null);
+  const goRef = useRef<() => void>(() => {});
+  const mounted = useRef(true);
+  const autoTimer = useRef<any>(null);
+  const bob = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => () => { mounted.current = false; clearTimeout(autoTimer.current); }, []);
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(bob, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(bob, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ])).start();
+  }, []);
+
+  // Görselleri önyükle
+  const urls = useMemo(() => [c.img, ...[...new Set([...c.items, ...c.rare])].slice(0, 60).map((s) => SKINS[s].img)], [c]);
+  useEffect(() => {
+    if (loaded.has(id)) return;
+    let cancelled = false;
+    const t0 = Date.now();
+    (async () => {
+      setLoad({ n: 0, t: urls.length });
+      for (let i = 0; i < urls.length; i += 8) {
+        if (cancelled || Date.now() - t0 > 3500) break;
+        try { await Image.prefetch(urls.slice(i, i + 8)); } catch {}
+        if (!cancelled) setLoad({ n: Math.min(urls.length, i + 8), t: urls.length });
+      }
+      const wait = Math.max(0, 700 - (Date.now() - t0));
+      setTimeout(() => { loaded.add(id); if (!cancelled) setLoad(null); }, wait);
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const price = casePrice(c, prices);
+  const freeHave = g.freeCases[id] || 0;
+  const costFor = (n: number) => price * Math.max(0, n - freeHave);
+  const maxMulti = 6;
+  const counts = g.massOpen ? [1, 2, 3, 4, 5, 6, 10, 25, 50] : [1, 2, 3, 4, 5, 6];
+  const quickForced = count > maxMulti;
+  const canOpen = g.balance >= costFor(count) - 1e-9;
 
   const weights = tierWeights(c);
   const byTier = useMemo(() => {
     const m: Record<number, string[]> = {};
-    for (const id of c.items) (m[SKINS[id].t] ||= []).push(id);
+    for (const s of c.items) (m[SKINS[s].t] ||= []).push(s);
     return m;
   }, [c]);
-  const rareNames = useMemo(() => [...new Set(c.rare.map((id) => SKINS[id].n))], [c]);
+  const rareGroups = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of c.rare) if (!m.has(SKINS[s].n)) m.set(SKINS[s].n, s);
+    return [...m.values()];
+  }, [c]);
 
-  const filler = () => {
-    const rng = new Rng({ serverSeed: String(Math.random()), clientSeed: 'v', nonce: 0 }, Math.floor(Math.random() * 1e9));
-    return rollCase(c, rng).skinId;
-  };
+  const filler = () => rollCase(c, new Rng({ serverSeed: String(Math.random()), clientSeed: 'v', nonce: 0 }, Math.floor(Math.random() * 1e9))).skinId;
 
-  function run(count: number) {
-    if (busy) return;
-    const items = open(c.id, count, prices);
-    if (!items) return;
-    if (count > 1 || fast) {
-      play('unlock');
-      const top = items.reduce((a, b) => (SKINS[b.skinId].t > SKINS[a.skinId].t ? b : a));
-      setTimeout(() => { play(winSfx(SKINS[top.skinId].t)); haptic('success'); }, 250);
-      setWon(items);
-      return;
+  function finish(items: Item[], free: number) {
+    if (!mounted.current) return;
+    let soldTotal = 0, soldN = 0;
+    let kept = items;
+    const top = items.reduce((m, i) => Math.max(m, SKINS[i.skinId].t), 1);
+    if (g.autoSell.on) {
+      const sellable = items.filter((i) => itemPrice(i, prices).p < g.autoSell.max && SKINS[i.skinId].t < 4);
+      if (sellable.length) {
+        soldTotal = sell(sellable.map((i) => i.uid), prices);
+        soldN = sellable.length;
+        const rm = new Set(sellable.map((i) => i.uid));
+        kept = items.filter((i) => !rm.has(i.uid));
+      }
     }
-    const item = items[0];
-    const ids = Array.from({ length: REEL_LEN }, filler);
-    ids[WIN_IDX] = item.skinId;
-    setReel(ids);
-    setBusy(true);
-    lastIdx.current = -1;
-    const jitter = (Math.random() - 0.5) * (IW - 24);
-    const target = -(WIN_IDX * IW + IW / 2 - (W - 16) / 2 + jitter);
-    x.setValue(0);
-    play('unlock');
-    const id = x.addListener(({ value }) => {
-      const i = Math.floor((-value + (W - 16) / 2) / IW);
-      if (i !== lastIdx.current) { lastIdx.current = i; play('tick'); }
-    });
-    Animated.timing(x, { toValue: target, duration: 6800, easing: Easing.bezier(0.1, 0.75, 0.12, 1), useNativeDriver: true }).start(() => {
-      x.removeListener(id);
-      const t = SKINS[item.skinId].t;
-      play(winSfx(t));
-      haptic(t >= 4 ? 'heavy' : 'success');
-      setBusy(false);
-      setWon([item]);
-    });
+    play(winSfx(top));
+    haptic(top >= 4 ? 'heavy' : 'success');
+    setBusy(false);
+    const auto = useGame.getState().autoSpin && top < 4;
+    if (auto) {
+      setSheet(null);
+      setPending(kept);
+      autoTimer.current = setTimeout(() => { if (mounted.current && useGame.getState().autoSpin) goRef.current(); else setPending(null); }, 1700);
+    } else {
+      setSelSheet(new Set());
+      setSheet({ kept, sold: soldTotal, soldN, free });
+    }
   }
 
-  const closeWon = () => { setWon(null); setReel(null); };
+  function go() {
+    if (busy) return;
+    const r = open(id, count, prices);
+    if (!r) { say('Yetersiz bakiye'); return; }
+    setPending(null);
+    setBusy(true);
+    const quick = g.quick || count > maxMulti;
+    if (quick) {
+      play('unlock');
+      setReels(null);
+      setTimeout(() => finish(r.items, r.free), 350);
+      return;
+    }
+    const defs: ReelDef[] = r.items.map((it) => {
+      const ids = Array.from({ length: REEL_LEN }, filler);
+      ids[WIN_AT] = it.skinId;
+      return { ids, win: WIN_AT };
+    });
+    doneCount.current = 0;
+    setReels(defs);
+    setRun((x) => x + 1);
+    play('unlock');
+    infoRef.current = { items: r.items, free: r.free, n: defs.length };
+  }
+  goRef.current = go;
+
+  function reelDone() {
+    const info = infoRef.current;
+    if (!info) return;
+    doneCount.current++;
+    if (doneCount.current >= info.n) { infoRef.current = null; finish(info.items, info.free); }
+  }
+
+  const reelH = count === 1 ? 128 : count <= 3 ? 84 : 66;
+  const sheetItems = sheet?.kept || [];
+  const sheetVal = sheetItems.reduce((a, i) => a + itemPrice(i, prices).p, 0);
+  const selVal = sheetItems.filter((i) => selSheet.has(i.uid)).reduce((a, i) => a + itemPrice(i, prices).p * 0.9, 0);
+  const cw = (W - GUT * 2 - 12) / 3;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-        <Pressable onPress={onBack} disabled={busy}><Text style={{ color: C.accent, fontSize: 16, padding: 6 }}>‹ Geri</Text></Pressable>
-        <Text style={[s.h1, { flex: 1, textAlign: 'center', marginRight: 50 }]}>{c.name}</Text>
-      </View>
-
-      {/* Şerit */}
-      <View style={{ height: 130, backgroundColor: C.card, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line, marginBottom: 10 }}>
-        {reel ? (
-          <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: x }], height: 130, alignItems: 'center' }}>
-            {reel.map((id, i) => (
-              <View key={i} style={{ width: IW, height: 118, padding: 4 }}>
-                <View style={{ flex: 1, backgroundColor: C.card2, borderRadius: 8, borderBottomWidth: 4, borderBottomColor: TIER_COLOR[SKINS[id].t], alignItems: 'center', justifyContent: 'center' }}>
-                  <Image source={{ uri: SKINS[id].img }} style={{ width: 96, height: 72 }} contentFit="contain" />
-                </View>
-              </View>
-            ))}
-          </Animated.View>
-        ) : (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Image source={{ uri: c.img }} style={{ width: 150, height: 110 }} contentFit="contain" />
-          </View>
-        )}
-        {reel && <View pointerEvents="none" style={{ position: 'absolute', left: (W - 16) / 2 - 1.5, top: 0, bottom: 0, width: 3, backgroundColor: C.gold }} />}
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
-        <Btn style={{ flex: 2 }} label={`Aç  ${money(cost)}`} disabled={busy || balance < cost} color={C.green} onPress={() => run(1)} />
-        <Btn style={{ flex: 1 }} label="x5" disabled={busy || balance < cost * 5} color={C.accent} onPress={() => run(5)} />
-        <Btn style={{ flex: 1 }} label="x10" disabled={busy || balance < cost * 10} color={C.accent} onPress={() => run(10)} />
-      </View>
-      <View style={{ flexDirection: 'row', marginBottom: 10 }}>
-        <Chip label={fast ? 'Animasyon: kapalı' : 'Animasyon: açık'} on={fast} onPress={() => setOpt('fast', !fast)} />
-        <Text style={[s.p, { alignSelf: 'center' }]}>Kasa + anahtar ($2.49)</Text>
-      </View>
-
-      <Text style={s.h2}>Kasa İçeriği</Text>
-      {[1, 2, 3, 4].map((t) => byTier[t] && (
-        <View key={t} style={s.box}>
-          <Text style={{ color: TIER_COLOR[t], fontWeight: '800', marginBottom: 4 }}>
-            {TIER_NAME[t]} · %{(weights[t] * 100).toFixed(2)}
-          </Text>
-          {byTier[t].map((id) => (
-            <View key={id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 2 }}>
-              <Image source={{ uri: SKINS[id].img }} style={{ width: 40, height: 30 }} contentFit="contain" />
-              <Text style={{ color: C.text, fontSize: 12, marginLeft: 6, flex: 1 }}>{SKINS[id].n}</Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: GUT, paddingBottom: 40 }}>
+        {/* Sahne */}
+        <View style={{ minHeight: 190, justifyContent: 'center', marginBottom: 6 }}>
+          {reels ? (
+            <View style={{ gap: 6 }}>
+              {reels.map((r, i) => (
+                <Reel key={i} ids={r.ids} winIndex={r.win} h={reelH} duration={count === 1 ? 6200 : 4400 + i * 250} run={run}
+                  onTick={i === 0 ? () => play('tick') : undefined} onDone={reelDone} />
+              ))}
             </View>
-          ))}
+          ) : (
+            <Animated.View style={{ alignItems: 'center', transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }] }}>
+              <Image source={{ uri: c.img }} style={{ width: 230, height: 170 }} contentFit="contain" />
+            </Animated.View>
+          )}
         </View>
-      ))}
-      {weights[5] && (
-        <Pressable onPress={() => setRareView(true)} style={[s.box, { borderColor: C.gold }]}>
-          <Text style={{ color: C.gold, fontWeight: '800' }}>★ Nadir Özel · %{(weights[5] * 100).toFixed(2)}  ({rareNames.length} çeşit) ›</Text>
-          <Text style={s.p}>Bıçak / eldiven listesini gör</Text>
-        </Pressable>
+        <Text style={[st.h1, { textAlign: 'center', marginBottom: 10 }]}>{c.name}</Text>
+
+        {pending && (
+          <Text style={{ textAlign: 'center', color: C.green, marginBottom: 6, fontWeight: '700' }}>
+            {pending.map((i) => SKINS[i.skinId].n.split(' | ').pop()).join(' · ') || 'Hepsi otomatik satıldı'}
+          </Text>
+        )}
+
+        <Btn label={busy ? 'Açılıyor…' : count > 1 ? `${count} Kasa Aç` : 'Kilidi Aç'} icon={busy ? undefined : '🔓'} disabled={busy || !canOpen} onPress={go}
+          sub={undefined} />
+        <Text style={{ textAlign: 'center', color: C.dim, marginVertical: 6, fontSize: 15 }}>
+          {freeHave >= count ? `Ücretsiz kasa kullanılacak (kalan ${freeHave})` : `Anahtar + Kasa: ${money(costFor(count))}${freeHave ? ` (${Math.min(freeHave, count)} ücretsiz)` : ''}`}
+          {!canOpen ? '  ·  Yetersiz bakiye' : ''}
+        </Text>
+
+        {/* Ayarlar */}
+        <View style={[st.card, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 10 }]}>
+          <Toggle label="Oto-Çevir" on={g.autoSpin} onPress={() => setOpt('autoSpin', !g.autoSpin)} />
+          <Toggle label="Oto Tut/Sat" on={g.autoSell.on} onPress={() => setAutoSell(!g.autoSell.on)} onGear={() => setAsOpen(true)} />
+          <Toggle label="Hızlı ⚡" on={g.quick} onPress={() => setOpt('quick', !g.quick)} />
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+          <Text style={{ color: C.dim, fontWeight: '700', marginRight: 8 }}>AÇ:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {counts.map((n) => {
+              const ok = g.balance >= costFor(n) - 1e-9;
+              const on = n === count;
+              return (
+                <Pressable key={n} disabled={busy || !ok} onPress={() => setCount(n)} style={{ width: 46, height: 44, marginRight: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? '#4f7a2a' : C.card2, opacity: ok ? 1 : 0.35 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 18 }}>{n}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        {!g.massOpen && <Text style={[st.dim, { marginTop: -6, marginBottom: 10 }]}>Mağazadan "Toplu Açma" alırsan 10/25/50 kasa aynı anda açabilirsin.</Text>}
+
+        {/* İçerik */}
+        <Text style={[st.h2, { marginBottom: 8 }]}>Kasa İçeriği</Text>
+        {[1, 2, 3, 4].map((t) => byTier[t] && (
+          <View key={t} style={{ marginBottom: 6 }}>
+            <Text style={{ color: TIER_COLOR[t], fontWeight: '700', marginLeft: 4, marginBottom: 2 }}>{TIER_NAME[t]} · %{(weights[t] * 100).toFixed(2)}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {byTier[t].map((sid) => <ContentTile key={sid} skinId={sid} c={c} w={cw} onPress={() => setInfo(sid)} />)}
+            </View>
+          </View>
+        ))}
+        {weights[5] ? (
+          <Pressable onPress={() => setRare(true)} style={{ marginTop: 4 }}>
+            <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.gold, flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 28, marginRight: 10 }}>★</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: C.gold, fontWeight: '700', fontSize: 17 }}>Nadir Özel · %{(weights[5] * 100).toFixed(2)}</Text>
+                <Text style={st.dim}>{rareGroups.length} bıçak/eldiven çeşidi · dokun ve gör</Text>
+              </View>
+              <Text style={{ color: C.gold, fontSize: 22 }}>›</Text>
+            </View>
+          </Pressable>
+        ) : null}
+        <Text style={[st.dim, { textAlign: 'center', marginTop: 14 }]}>Sanal değer: gerçek paraya çevrilemez. Adil-oyun sayacı: {g.seeds.nonce}</Text>
+      </ScrollView>
+
+      {/* Yükleme */}
+      {load && (
+        <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 30 }}>
+          <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) }] }}>
+            <Image source={{ uri: c.img }} style={{ width: 220, height: 160 }} contentFit="contain" />
+          </Animated.View>
+          <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 20 }}>{c.name} yükleniyor…</Text>
+          <Bar v={load.n / load.t} color={C.gold} h={8} style={{ width: '70%', marginTop: 12 }} />
+          <Text style={{ color: C.dim, marginTop: 6 }}>{load.n} / {load.t}</Text>
+        </View>
       )}
-      <Text style={[s.p, { marginTop: 4 }]}>Adil-oyun sayacı (nonce): {seeds.nonce}</Text>
 
-      <Modal visible={!!won} transparent animationType="fade" onRequestClose={closeWon}>
-        <View style={{ flex: 1, backgroundColor: '#000d', justifyContent: 'center', padding: 12 }}>
-          <View style={{ backgroundColor: C.bg, borderRadius: 14, padding: 10, maxHeight: '90%' }}>
-            <Text style={[s.h1, { textAlign: 'center', marginBottom: 8 }]}>{won && won.length > 1 ? `${won.length} Eşya` : 'Çıkan Eşya'}</Text>
-            <FlatList
-              data={won || []} numColumns={won && won.length > 1 ? 2 : 1} key={won && won.length > 1 ? 'm' : 's'}
-              keyExtractor={(i) => i.uid}
-              renderItem={({ item }) => <ItemCard item={item} prices={prices} />}
-            />
-            {won && (
-              <Text style={{ color: C.green, textAlign: 'center', fontWeight: '800', marginVertical: 8 }}>
-                Toplam değer: {money(won.reduce((a, i) => a + itemPrice(i, prices).p, 0))}
-              </Text>
-            )}
-            <Btn label="Envantere Ekle" onPress={closeWon} />
+      {/* Sonuç */}
+      <Sheet visible={!!sheet} onClose={() => setSheet(null)} full>
+        <Text style={[st.h1, { textAlign: 'center' }]}>{sheetItems.length > 1 ? `${sheetItems.length} eşya çıktı` : sheetItems.length === 1 ? 'Çıkan eşya' : 'Otomatik satıldı'}</Text>
+        {sheet && sheet.soldN > 0 && <Text style={{ textAlign: 'center', color: C.green, marginTop: 2 }}>{sheet.soldN} eşya otomatik satıldı  +{money(sheet.sold)}</Text>}
+        <ScrollView style={{ marginVertical: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: sheetItems.length === 1 ? 'center' : 'flex-start' }}>
+            {sheetItems.map((it) => (
+              <ItemTile key={it.uid} item={it} prices={prices} w={sheetItems.length === 1 ? W * 0.62 : (W - 52) / 2}
+                selected={selSheet.has(it.uid)}
+                onPress={() => setSelSheet((p) => { const n = new Set(p); n.has(it.uid) ? n.delete(it.uid) : n.add(it.uid); return n; })} />
+            ))}
+          </View>
+        </ScrollView>
+        {sheetItems.length > 0 && <Text style={{ textAlign: 'center', color: C.green, fontWeight: '700', fontSize: 18 }}>Toplam {money(sheetVal)}  ·  satmak için dokun</Text>}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+          {sheetItems.length > 0 && (
+            <Btn style={{ flex: 1 }} kind="gold" small label={selSheet.size ? `Seçilenleri sat ${money(selVal)}` : `Hepsini sat ${money(sheetVal * 0.9)}`}
+              onPress={() => {
+                const uids = selSheet.size ? [...selSheet] : sheetItems.map((i) => i.uid);
+                sell(uids, prices); play('coin'); setSheet(null);
+              }} />
+          )}
+          <Btn style={{ flex: 1 }} small label="Devam" onPress={() => setSheet(null)} />
+        </View>
+      </Sheet>
+
+      {/* Eşya bilgisi */}
+      <Sheet visible={!!info} onClose={() => setInfo(null)}>
+        {info && <SkinInfo skinId={info} c={c} prices={prices} />}
+      </Sheet>
+
+      {/* Nadir liste */}
+      <Sheet visible={rare} onClose={() => setRare(false)} full>
+        <Text style={[st.h1, { color: C.gold, marginBottom: 8 }]}>★ Nadir Özel Eşyalar</Text>
+        <ScrollView>
+          {rareGroups.map((sid) => (
+            <Pressable key={sid} onPress={() => { setRare(false); setTimeout(() => setInfo(sid), 300); }} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+              <Image source={{ uri: SKINS[sid].img }} style={{ width: 64, height: 46 }} contentFit="contain" />
+              <Text style={{ flex: 1, marginLeft: 10, fontSize: 16 }}>{SKINS[sid].n}</Text>
+              <Text style={{ color: C.gold }}>{fmtRange(priceRange(sid, prices))}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Sheet>
+
+      {/* Oto-sat ayarı */}
+      <Sheet visible={asOpen} onClose={() => setAsOpen(false)}>
+        <Text style={[st.h1, { marginBottom: 6 }]}>Otomatik Tut / Sat</Text>
+        <Text style={st.dim}>Bu tutarın altındaki eşyalar çıkınca otomatik satılır. Covert ve üstü her zaman tutulur.</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginVertical: 12 }}>
+          {[0.1, 0.25, 0.5, 1, 2, 5, 10].map((v) => <Chip key={v} label={`<$${v}`} on={g.autoSell.max === v} onPress={() => setAutoSell(true, v)} />)}
+        </View>
+        <Btn label="Tamam" onPress={() => setAsOpen(false)} />
+      </Sheet>
+    </View>
+  );
+}
+
+function Toggle(p: { label: string; on: boolean; onPress: () => void; onGear?: () => void }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Pressable onPress={p.onPress} style={{ width: 52, height: 28, borderRadius: 14, backgroundColor: p.on ? '#4f7a2a' : C.card2, justifyContent: 'center', paddingHorizontal: 3 }}>
+        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: p.on ? '#d8f2b6' : '#566', alignSelf: p.on ? 'flex-end' : 'flex-start' }} />
+      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+        <Text style={{ color: C.dim, fontWeight: '700', fontSize: 13 }}>{p.label}</Text>
+        {p.onGear && <Pressable hitSlop={10} onPress={p.onGear}><Text style={{ marginLeft: 4 }}>⚙️</Text></Pressable>}
+      </View>
+    </View>
+  );
+}
+
+function ContentTile({ skinId, c, w, onPress }: { skinId: string; c: CaseDef; w: number; onPress: () => void }) {
+  const prices = usePrices((x) => x.p);
+  const s = SKINS[skinId];
+  const col = TIER_COLOR[s.t];
+  const [weapon, pattern] = s.n.includes(' | ') ? s.n.split(' | ') : [s.n, ''];
+  const pr = priceRange(skinId, prices);
+  const pct = dropPercent(c, skinId);
+  return (
+    <Pressable onPress={onPress} style={{ width: w, padding: 3 }}>
+      <View style={{ backgroundColor: C.card, borderRadius: 12, overflow: 'hidden' }}>
+        <View style={{ position: 'absolute', zIndex: 2, left: 4, top: 4, backgroundColor: '#000a', borderRadius: 6, paddingHorizontal: 5 }}>
+          <Text style={{ color: C.green, fontWeight: '700', fontSize: 12 }}>{pr.est ? '~' : ''}{fmtRange(pr)}</Text>
+        </View>
+        <Image source={{ uri: s.img }} style={{ width: '100%', height: w * 0.62, marginTop: 14 }} contentFit="contain" />
+        <View style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
+          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 13 }}>{pattern || weapon}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontWeight: '700', fontSize: 12 }}>{pct >= 10 ? pct.toFixed(1) : pct.toFixed(2)}%</Text>
+            <Text numberOfLines={1} style={{ color: C.dim, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{pattern ? weapon : ''}</Text>
           </View>
         </View>
-      </Modal>
+        <View style={{ height: 4, backgroundColor: col }} />
+      </View>
+    </Pressable>
+  );
+}
 
-      <Modal visible={rareView} transparent animationType="slide" onRequestClose={() => setRareView(false)}>
-        <View style={{ flex: 1, backgroundColor: '#000c', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 12, maxHeight: '75%' }}>
-            <Text style={[s.h1, { color: C.gold, marginBottom: 8 }]}>★ Nadir Özel Eşyalar</Text>
-            <FlatList
-              data={rareNames}
-              keyExtractor={(n) => n}
-              renderItem={({ item: n }) => {
-                const id = c.rare.find((r) => SKINS[r].n === n)!;
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 3 }}>
-                    <Image source={{ uri: SKINS[id].img }} style={{ width: 50, height: 38 }} contentFit="contain" />
-                    <Text style={{ color: C.text, marginLeft: 8, flex: 1, fontSize: 13 }}>{n}</Text>
-                  </View>
-                );
-              }}
-            />
-            <Btn label="Kapat" onPress={() => setRareView(false)} style={{ marginTop: 8 }} />
-          </View>
-        </View>
-      </Modal>
+function SkinInfo({ skinId, c, prices }: { skinId: string; c: CaseDef; prices: any }) {
+  const s = SKINS[skinId];
+  const pct = dropPercent(c, skinId);
+  return (
+    <ScrollView>
+      <Image source={{ uri: s.img }} style={{ width: '100%', height: 150 }} contentFit="contain" />
+      <Text style={[st.h1, { textAlign: 'center' }]}>{s.n}{s.ph ? ` (${s.ph})` : ''}</Text>
+      <Text style={{ color: TIER_COLOR[s.t], textAlign: 'center', fontWeight: '700' }}>{TIER_NAME[s.t]}  ·  düşme şansı %{pct.toFixed(3)}</Text>
+      <View style={{ marginTop: 10 }}>
+        {s.v ? (
+          <Row l="Fiyat" v={fmt(basePrice(s, 0, false, prices))} />
+        ) : (
+          WEARS.map((w, i) => {
+            const lo = i === 0 ? 0 : WEARS[i - 1].max;
+            const a = Math.max(lo, s.min), b = Math.min(w.max, s.max);
+            if (a >= b) return null;
+            const mid = (a + b) / 2;
+            return <Row key={w.name} l={`${w.name}  (${a.toFixed(2)}–${b.toFixed(2)})`} v={fmt(basePrice(s, mid, false, prices))} v2={s.st ? fmt(basePrice(s, mid, true, prices)) : undefined} />;
+          })
+        )}
+        {s.st && <Text style={[st.dim, { marginTop: 4 }]}>İkinci fiyat: StatTrak™ (%10 ihtimal)</Text>}
+      </View>
     </ScrollView>
+  );
+}
+const fmt = (p: { p: number; est: boolean }) => `${p.est ? '~' : ''}${money(p.p)}`;
+function Row({ l, v, v2 }: { l: string; v: string; v2?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderColor: C.line }}>
+      <Text style={{ color: C.dim, flex: 1 }}>{l}</Text>
+      <Text style={{ color: C.green, fontWeight: '700', marginRight: v2 ? 14 : 0 }}>{v}</Text>
+      {v2 && <Text style={{ color: '#cf6a32', fontWeight: '700', width: 70, textAlign: 'right' }}>{v2}</Text>}
+    </View>
   );
 }

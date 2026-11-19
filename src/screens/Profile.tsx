@@ -1,107 +1,118 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, View, Pressable } from 'react-native';
-import { levelFromXp } from '../engine/game';
-import { CLICK_UPGRADES, clickCost, seedHash, useGame } from '../store/game';
+import React, { useState } from 'react';
+import { Alert, ScrollView, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { CASES, levelFromXp } from '../engine/game';
+import { seedHash, useGame } from '../store/game';
 import { usePrices } from '../store/prices';
-import { play, haptic } from '../sound';
-import { Btn, C, Chip, money, s } from '../ui';
+import { Bar, Btn, C, Chip, Text, money, st } from '../ui';
+
+const TITLES = [
+  { name: 'Kasa Ustası', f: (s: any) => s.stats.opened, steps: [100, 500, 2000, 10000], unit: 'kasa' },
+  { name: 'Whale', f: (s: any) => s.stats.spent, steps: [100, 1000, 10000, 100000], unit: '$' },
+  { name: 'Altın Avcısı', f: (s: any) => s.stats.gold, steps: [1, 5, 20, 50], unit: '★' },
+];
+const RANK = ['Çaylak', 'Bronz', 'Gümüş', 'Altın', 'Efsane'];
 
 export default function Profile() {
   const g = useGame();
   const pr = usePrices();
   const lv = levelFromXp(g.xp);
   const [cs, setCs] = useState(g.seeds.clientSeed);
-  const [offline, setOffline] = useState(0);
-
-  useEffect(() => { const x = g.collectAuto(); if (x > 0) setOffline(x); }, []);
-  useEffect(() => {
-    if (!g.click.auto) return;
-    const t = setInterval(() => g.collectAuto(), 1000);
-    return () => clearInterval(t);
-  }, [g.click.auto]);
-
   const age = pr.updated ? Math.round((Date.now() - pr.updated) / 3600000) : null;
-  const st = g.stats;
+  const st_ = g.stats;
+  const done = CASES.filter((c) => (g.perCase[c.id] || 0) > 0).length;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 10 }}>
-      <View style={s.box}>
-        <Text style={s.h1}>Seviye {lv.level}{lv.level >= 100 ? ' · MAX' : ''}</Text>
-        <View style={{ height: 8, backgroundColor: C.card2, borderRadius: 4, marginVertical: 6 }}>
-          <View style={{ height: 8, borderRadius: 4, backgroundColor: C.accent, width: `${Math.min(100, (lv.cur / lv.need) * 100)}%` }} />
-        </View>
-        <Text style={s.p}>{lv.cur}/{lv.need} XP · Takas Kontratı Sv.3, Upgrader Sv.5'te açılır</Text>
+    <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+      <LinearGradient colors={['#2b3347', '#171b25']} style={{ borderRadius: 18, padding: 16, alignItems: 'center' }}>
+        <Text style={{ fontSize: 76, fontWeight: '700', lineHeight: 84 }}>{lv.level}</Text>
+        <Text style={{ color: C.dim, fontWeight: '700', letterSpacing: 2 }}>SEVİYE</Text>
+        <Bar v={lv.cur / lv.need} h={14} style={{ alignSelf: 'stretch', marginTop: 10 }} color={C.blue} />
+        <Text style={{ color: C.dim, marginTop: 4 }}>{lv.cur.toLocaleString()} / {lv.need.toLocaleString()} XP</Text>
+      </LinearGradient>
+
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Ömür boyu toplamlar</Text>
+      <View style={st.card}>
+        <Row l="Toplam kazanç" v={money(st_.earned)} />
+        <Row l="Toplam harcama" v={money(st_.spent)} />
+        <Row l="Açılan kasa" v={String(st_.opened)} />
+        <Row l="Altın (★) çıkan" v={String(st_.gold)} />
+        <Row l="En değerli drop" v={st_.bestName ? `${st_.bestName} (${money(st_.best)})` : '-'} />
+        <Row l="Upgrader" v={`${st_.upWins}K / ${st_.upLoss}Y`} />
+        <Row l="Takas / Coinflip" v={`${st_.trades} / ${st_.flipWins}-${st_.flips - st_.flipWins}`} last />
       </View>
 
-      <View style={s.box}>
-        <Text style={s.h2}>İstatistikler</Text>
-        <Text style={s.p}>Açılan kasa: {st.opened} · Harcanan: {money(st.spent)} · Satıştan: {money(st.earned)}</Text>
-        <Text style={s.p}>Altın (★) çıkan: {st.gold} · Upgrader {st.upWins}W/{st.upLoss}L · Takas: {st.trades}</Text>
-        <Text style={s.p}>En değerli drop: {st.bestName ? `${st.bestName} (${money(st.best)})` : '-'}</Text>
-      </View>
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Ünvanlar</Text>
+      {TITLES.map((t) => {
+        const val = t.f(g);
+        let r = 0; while (r < t.steps.length && val >= t.steps[r]) r++;
+        const next = t.steps[Math.min(r, t.steps.length - 1)];
+        return (
+          <View key={t.name} style={[st.card, { marginBottom: 8 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontWeight: '700', fontSize: 18 }}>{t.name}</Text>
+              <Text style={{ color: C.gold, fontWeight: '700' }}>{RANK[r]}</Text>
+            </View>
+            <Bar v={r >= t.steps.length ? 1 : val / next} h={8} style={{ marginTop: 6 }} color={C.gold} />
+            <Text style={[st.dim, { textAlign: 'right' }]}>{Math.floor(val)} / {next} {t.unit}</Text>
+          </View>
+        );
+      })}
 
-      <View style={s.box}>
-        <Text style={s.h2}>Tıklayıcı (para bitince)</Text>
-        {offline > 0 && <Text style={{ color: C.green }}>Çevrimdışı kazanç: +{money(offline)}</Text>}
-        <Pressable
-          onPress={() => { g.tap(); play('coin'); haptic('light'); }}
-          style={({ pressed }) => ({ backgroundColor: pressed ? '#2a7d3f' : C.green, borderRadius: 14, paddingVertical: 26, alignItems: 'center', marginVertical: 8 })}
-        >
-          <Text style={{ fontSize: 22, fontWeight: '900', color: '#000' }}>TIKLA +{money(0.01 * (1 + g.click.tap))}</Text>
-        </Pressable>
-        {CLICK_UPGRADES.map((u) => {
-          const lvl = g.click[u.id as 'tap' | 'auto'];
-          const cost = clickCost(u.id as 'tap' | 'auto', lvl);
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Kasa koleksiyonu · {done} / {CASES.length}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {CASES.map((c) => {
+          const n = g.perCase[c.id] || 0;
           return (
-            <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: C.text, fontWeight: '700' }}>{u.name} · Sv.{lvl}</Text>
-                <Text style={s.sm}>{u.desc}</Text>
+            <View key={c.id} style={{ width: '25%', padding: 3 }}>
+              <View style={{ backgroundColor: C.card, borderRadius: 10, padding: 4, alignItems: 'center', opacity: n ? 1 : 0.35 }}>
+                <Image source={{ uri: c.img }} style={{ width: '100%', height: 50 }} contentFit="contain" />
+                <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '700' }}>{c.name.replace(' Case', '')}</Text>
+                <Text style={{ color: n ? C.green : C.dim, fontSize: 12, fontWeight: '700' }}>{n}</Text>
               </View>
-              <Btn small label={money(cost)} disabled={g.balance < cost} onPress={() => g.buyClick(u.id as 'tap' | 'auto')} />
             </View>
           );
         })}
       </View>
 
-      <View style={s.box}>
-        <Text style={s.h2}>Adil-Oyun (Provably Fair)</Text>
-        <Text style={s.sm}>Sunucu tohumu hash'i (SHA-256):</Text>
-        <Text selectable style={{ color: C.text, fontSize: 11 }}>{seedHash(g.seeds)}</Text>
-        <Text style={[s.sm, { marginTop: 6 }]}>İstemci tohumu:</Text>
-        <TextInput value={cs} onChangeText={setCs} onBlur={() => g.setClientSeed(cs)} style={{ backgroundColor: C.card2, color: C.text, borderRadius: 8, padding: 8 }} />
-        <Text style={[s.sm, { marginTop: 6 }]}>Nonce: {g.seeds.nonce}</Text>
-        {g.seeds.lastRevealed && (
-          <>
-            <Text style={[s.sm, { marginTop: 6 }]}>Önceki sunucu tohumu (açıklandı):</Text>
-            <Text selectable style={{ color: C.text, fontSize: 11 }}>{g.seeds.lastRevealed}</Text>
-          </>
-        )}
-        <Text style={[s.sm, { marginTop: 6 }]}>
-          Sonuç = HMAC-SHA256(sunucu, "istemci:nonce:sayaç"). Tohumu yenileyince eskisi açıklanır, eski açılışları kendin doğrulayabilirsin. Bu sürümde tohumlar cihazda üretilir.
-        </Text>
-        <Btn small color={C.card2} label="Tohumu Yenile" onPress={() => g.rotateSeed()} style={{ marginTop: 8 }} />
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Adil-Oyun</Text>
+      <View style={st.card}>
+        <Text style={st.dim}>Sunucu tohumu hash'i (SHA-256):</Text>
+        <Text selectable style={{ fontSize: 12 }}>{seedHash(g.seeds)}</Text>
+        <Text style={[st.dim, { marginTop: 6 }]}>İstemci tohumu:</Text>
+        <TextInput value={cs} onChangeText={setCs} onBlur={() => g.setClientSeed(cs)} style={{ backgroundColor: C.card2, color: C.text, borderRadius: 8, padding: 8, fontFamily: C.font }} />
+        <Text style={[st.dim, { marginTop: 6 }]}>Nonce: {g.seeds.nonce}</Text>
+        {g.seeds.lastRevealed && <><Text style={[st.dim, { marginTop: 6 }]}>Önceki sunucu tohumu:</Text><Text selectable style={{ fontSize: 12 }}>{g.seeds.lastRevealed}</Text></>}
+        <Text style={[st.dim, { marginTop: 6 }]}>Sonuç = HMAC-SHA256(sunucu, "istemci:nonce:sayaç"). Tohumu yenileyince eskisi açıklanır, açılışları doğrulayabilirsin.</Text>
+        <Btn small kind="ghost" label="Tohumu yenile" onPress={() => g.rotateSeed()} style={{ marginTop: 8 }} />
       </View>
 
-      <View style={s.box}>
-        <Text style={s.h2}>Fiyatlar</Text>
-        <Text style={s.p}>
-          {pr.count > 0 ? `${pr.count} gerçek piyasa fiyatı (Skinport) · ${age === 0 ? '<1' : age} saat önce` : 'Fiyat verisi yüklenmemiş: eşyalar tahmini fiyatla gösterilir (~).'}
-        </Text>
-        <Btn small label={pr.loading ? 'Yükleniyor...' : 'Fiyatları yenile'} disabled={pr.loading} onPress={async () => { const ok = await pr.refresh(); Alert.alert(ok ? 'Güncellendi' : 'Güncellenemedi', ok ? '' : 'İnternet ya da fiyat adresi yok.'); }} style={{ marginTop: 6 }} />
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Fiyatlar</Text>
+      <View style={st.card}>
+        <Text style={st.dim}>{pr.count > 0 ? `${pr.count} gerçek piyasa fiyatı (Skinport) · ${age === 0 ? '<1' : age} saat önce` : 'Fiyat verisi yok: tahmini fiyat (~) kullanılıyor.'}</Text>
+        <Btn small label={pr.loading ? 'Yükleniyor…' : 'Fiyatları yenile'} disabled={pr.loading} style={{ marginTop: 8 }}
+          onPress={async () => { const ok = await pr.refresh(); Alert.alert(ok ? 'Güncellendi' : 'Güncellenemedi'); }} />
       </View>
 
-      <View style={s.box}>
-        <Text style={s.h2}>Ayarlar</Text>
-        <View style={{ flexDirection: 'row' }}>
-          <Chip label={g.sfx ? 'Ses/Titreşim: açık' : 'Ses/Titreşim: kapalı'} on={g.sfx} onPress={() => g.setOpt('sfx', !g.sfx)} />
-        </View>
-        <Btn small color={C.red} label="Oyunu sıfırla" style={{ marginTop: 10 }} onPress={() => Alert.alert('Her şey silinsin mi?', '', [{ text: 'Vazgeç' }, { text: 'Sıfırla', style: 'destructive', onPress: () => g.reset() }])} />
+      <Text style={[st.h2, { marginTop: 16, marginBottom: 6 }]}>Ayarlar</Text>
+      <View style={[st.card, { flexDirection: 'row' }]}>
+        <Chip label={g.sfx ? 'Ses/Titreşim: açık' : 'Ses/Titreşim: kapalı'} on={g.sfx} onPress={() => g.setOpt('sfx', !g.sfx)} />
       </View>
-
-      <Text style={[s.sm, { textAlign: 'center', marginVertical: 10 }]}>
+      <Btn small kind="danger" label="Oyunu sıfırla" style={{ marginTop: 12 }}
+        onPress={() => Alert.alert('Her şey silinsin mi?', '', [{ text: 'Vazgeç' }, { text: 'Sıfırla', style: 'destructive', onPress: () => g.reset() }])} />
+      <Text style={[st.dim, { textAlign: 'center', marginTop: 16 }]}>
         Sanal para ile oynanan simülatör. Gerçek para / gerçek skin kazancı yoktur. Valve Corporation ile bağlantılı değildir. Counter-Strike ve skin görselleri Valve'ın tescilli markalarıdır.
       </Text>
     </ScrollView>
+  );
+}
+
+function Row({ l, v, last }: { l: string; v: string; last?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: last ? 0 : 1, borderColor: C.line }}>
+      <Text style={{ color: C.dim, fontSize: 16 }}>{l}</Text>
+      <Text style={{ fontWeight: '700', fontSize: 16, flexShrink: 1, textAlign: 'right', marginLeft: 10 }}>{v}</Text>
+    </View>
   );
 }
