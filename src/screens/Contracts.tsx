@@ -8,6 +8,7 @@ import { useNav } from '../nav';
 import { play, haptic } from '../sound';
 import Trade from './Trade';
 import { Bar, Btn, C, Chip, Text, money, st } from '../ui';
+import { Icon, IconName } from '../icons';
 
 export default function Contracts() {
   const sub = useNav((n) => n.contracts);
@@ -73,7 +74,7 @@ function Daily() {
         const done = m.progress >= m.target;
         return (
           <View key={m.id} style={[st.card, { flexDirection: 'row', alignItems: 'center', marginBottom: 8, opacity: m.claimed ? 0.5 : 1 }]}>
-            <Text style={{ fontSize: 28, marginRight: 10 }}>{MISSION_ICON[m.type]}</Text>
+            <View style={{ marginRight: 10 }}><Icon name={MISSION_ICON[m.type] as IconName} size={28} color={C.green} /></View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: '700', fontSize: 17 }}>{missionName(m)}</Text>
               <Text style={st.dim}>+{m.stars}★  +{money(m.cash)}</Text>
@@ -102,10 +103,10 @@ function TierCell({ tier, stars, claimed, onClaim }: { tier: number; stars: numb
   return (
     <Pressable disabled={!unlocked || claimed} onPress={onClaim} style={{ width: 92, padding: 3 }}>
       <View style={{ height: 118, borderRadius: 12, backgroundColor: C.card, borderWidth: unlocked && !claimed ? 2 : 0, borderColor: C.green, alignItems: 'center', justifyContent: 'center', opacity: unlocked ? 1 : 0.55, overflow: 'hidden' }}>
-        {img ? <Image source={{ uri: img }} style={{ width: 78, height: 58 }} contentFit="contain" /> : <Text style={{ fontSize: 34 }}>💵</Text>}
+        {img ? <Image source={{ uri: img }} style={{ width: 78, height: 58 }} contentFit="contain" /> : <Icon name="coin" size={34} color={C.green} />}
         <Text style={{ color, fontWeight: '700', fontSize: 15, marginTop: 4 }}>{label}</Text>
-        {claimed && <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 30 }}>✅</Text></View>}
-        {!unlocked && <Text style={{ position: 'absolute', right: 6, top: 4 }}>🔒</Text>}
+        {claimed && <View style={{ position: 'absolute', inset: 0, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={34} color={C.green} stroke={3} /></View>}
+        {!unlocked && <View style={{ position: 'absolute', right: 6, top: 4 }}><Icon name="lock" size={16} color={C.dim} /></View>}
       </View>
     </Pressable>
   );

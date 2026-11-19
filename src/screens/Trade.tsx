@@ -7,6 +7,7 @@ import { usePrices } from '../store/prices';
 import { levelFromXp } from '../engine/game';
 import { play, winSfx, haptic } from '../sound';
 import { Btn, C, ItemTile, Sheet, Text, money, st } from '../ui';
+import { Icon } from '../icons';
 
 const W = Dimensions.get('window').width;
 
@@ -20,7 +21,7 @@ export default function Trade() {
   const [out, setOut] = useState<Item | null>(null);
 
   if (levelFromXp(xp).level < 3) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 44 }}>🔒</Text><Text style={{ fontWeight: '700', fontSize: 20 }}>Seviye 3'te açılır</Text></View>;
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Icon name="lock" size={44} color="#8a93a3" /><Text style={{ fontWeight: '700', fontSize: 20 }}>Seviye 3'te açılır</Text></View>;
   }
 
   const ins = chosen.map((u) => inv.find((i) => i.uid === u)).filter(Boolean) as Item[];

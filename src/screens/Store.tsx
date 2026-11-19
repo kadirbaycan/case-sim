@@ -5,6 +5,7 @@ import { WHEEL, dayKey, fmtTime } from '../engine/extra';
 import { BOOST_PRICE, MASS_PRICE, useGame } from '../store/game';
 import { play, haptic } from '../sound';
 import { Btn, C, Text, money, st } from '../ui';
+import { Icon, IconName } from '../icons';
 
 const CELL = 96;
 
@@ -45,7 +46,7 @@ export default function Store() {
   return (
     <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
       <LinearGradient colors={['#1d3a22', '#101a12']} style={{ borderRadius: 16, padding: 14, borderWidth: 1, borderColor: ready ? C.green : C.line }}>
-        <Text style={{ fontWeight: '700', fontSize: 22 }}>🎡 GÜNLÜK ÇARK</Text>
+        <Text style={{ fontWeight: '700', fontSize: 22 }}>GÜNLÜK ÇARK</Text>
         <Text style={st.dim}>Günde bir kez ücretsiz. Ödül nakit ya da ücretsiz kasa.</Text>
         <View onLayout={(e) => setVw(e.nativeEvent.layout.width)} style={{ height: 96, marginVertical: 12, backgroundColor: C.card, borderRadius: 12, overflow: 'hidden' }}>
           {strip ? (
@@ -75,10 +76,10 @@ export default function Store() {
       </LinearGradient>
 
       <Text style={[st.h2, { marginTop: 18, marginBottom: 8 }]}>Güçlendirmeler</Text>
-      <Item icon="📦" title="Toplu Açma" desc="Aynı anda 10 / 25 / 50 kasa aç (hızlı modda)."
+      <Item icon="box" title="Toplu Açma" desc="Aynı anda 10 / 25 / 50 kasa aç (hızlı modda)."
         action={g.massOpen ? 'Sahipsin ✓' : `Satın al · ${money(MASS_PRICE)}`} disabled={g.massOpen || g.balance < MASS_PRICE}
         onPress={() => { if (buyMass()) { play('coin'); say('Toplu Açma açıldı!'); } }} />
-      <Item icon="⏫" title="Çift XP · 1 saat" desc={g.xpBoostUntil > Date.now() ? `Aktif: ${fmtTime(g.xpBoostUntil - Date.now())} kaldı` : 'Tüm XP kazancın 2 katı olur.'}
+      <Item icon="bolt" title="Çift XP · 1 saat" desc={g.xpBoostUntil > Date.now() ? `Aktif: ${fmtTime(g.xpBoostUntil - Date.now())} kaldı` : 'Tüm XP kazancın 2 katı olur.'}
         action={`Satın al · ${money(BOOST_PRICE)}`} disabled={g.balance < BOOST_PRICE}
         onPress={() => { if (buyBoost()) { play('coin'); say('Çift XP başladı!'); } }} />
       <Text style={[st.dim, { marginTop: 14, textAlign: 'center' }]}>Mağaza sanal parayla çalışır. Gerçek para harcaması yoktur.</Text>
@@ -86,12 +87,12 @@ export default function Store() {
   );
 }
 
-function Item(p: { icon: string; title: string; desc: string; action: string; disabled?: boolean; onPress: () => void }) {
+function Item(p: { icon: IconName; title: string; desc: string; action: string; disabled?: boolean; onPress: () => void }) {
   return (
     <View style={[st.card, { marginBottom: 10 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ width: 62, height: 62, borderRadius: 14, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-          <Text style={{ fontSize: 32 }}>{p.icon}</Text>
+          <Icon name={p.icon} size={32} color={C.green} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontWeight: '700', fontSize: 19 }}>{p.title}</Text>

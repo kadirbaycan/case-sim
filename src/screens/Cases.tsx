@@ -11,7 +11,8 @@ import { usePrices } from '../store/prices';
 import { useNav } from '../nav';
 import { play, winSfx, haptic } from '../sound';
 import { Reel } from '../components/Reel';
-import { Bar, Btn, Chip, ItemTile, Sheet, Text, money, st, C } from '../ui';
+import { Bar, Btn, Chip, ItemTile, Sheet, Text, Toggle, money, st, C } from '../ui';
+import { Icon, IconName } from '../icons';
 
 const W = Dimensions.get('window').width;
 const GUT = 12;
@@ -62,15 +63,15 @@ function CaseList() {
         </Pressable>
       ) : null}
       <View style={{ flexDirection: 'row', paddingHorizontal: GUT - 4, marginBottom: 10 }}>
-        <QuickTile icon="📦" title="Supply Drop" sub={ready ? 'AL!' : fmtTime(supplyAt - now)} hot={ready}
+        <QuickTile icon="box" title="Supply Drop" sub={ready ? 'AL!' : fmtTime(supplyAt - now)} hot={ready}
           onPress={() => { if (!ready) return say(`Sonraki drop: ${fmtTime(supplyAt - now)}`); claimSupply(); play('coin'); haptic('success'); }} />
-        <QuickTile icon="🎡" title="Günlük Çark" sub={wheelReady ? 'HAZIR!' : 'Yarın'} hot={wheelReady} onPress={() => setTab('store')} />
-        <QuickTile icon="🎁" title="Ücretsiz" sub={freeTotal ? `${freeTotal} kasa` : 'yok'} hot={freeTotal > 0} onPress={() => setF('free')} />
+        <QuickTile icon="wheel" title="Günlük Çark" sub={wheelReady ? 'HAZIR!' : 'Yarın'} hot={wheelReady} onPress={() => setTab('store')} />
+        <QuickTile icon="gift" title="Ücretsiz" sub={freeTotal ? `${freeTotal} kasa` : 'yok'} hot={freeTotal > 0} onPress={() => setF('free')} />
       </View>
       <TextInput value={q} onChangeText={setQ} placeholder="Kasa ara…" placeholderTextColor={C.dim}
         style={{ marginHorizontal: GUT, marginBottom: 8, backgroundColor: C.card, color: C.text, borderRadius: 12, paddingHorizontal: 14, height: 42, fontFamily: C.font, fontSize: 16 }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: GUT, marginBottom: 8, flexGrow: 0 }}>
-        {([['all', 'Hepsi'], ['free', 'Ücretsiz'], ['cheap', 'Ucuz'], ['pricey', 'Pahalı'], ['new', 'Yeni'], ['fav', '⭐ Favori']] as [Filter, string][]).map(([k, l]) => (
+        {([['all', 'Hepsi'], ['free', 'Ücretsiz'], ['cheap', 'Ucuz'], ['pricey', 'Pahalı'], ['new', 'Yeni'], ['fav', 'Favori']] as [Filter, string][]).map(([k, l]) => (
           <Chip key={k} label={l} on={f === k} onPress={() => setF(k)} />
         ))}
       </ScrollView>
@@ -88,7 +89,7 @@ function CaseList() {
           <Pressable onPress={() => openCase(c.id)} onLongPress={() => toggleFav(c.id)} style={{ width: cw, padding: 3 }}>
             <View style={{ backgroundColor: C.card, borderRadius: 14, paddingVertical: 8, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: free ? C.green : '#2b3a4d' }}>
               {free > 0 && <View style={{ position: 'absolute', top: 6, left: 6, zIndex: 2, backgroundColor: '#000a', borderRadius: 6, paddingHorizontal: 6 }}><Text style={{ color: C.green, fontWeight: '700', fontSize: 13 }}>ÜCRETSİZ ×{free}</Text></View>}
-              {favs.includes(c.id) && <Text style={{ position: 'absolute', top: 4, right: 6, zIndex: 2 }}>⭐</Text>}
+              {favs.includes(c.id) && <View style={{ position: 'absolute', top: 4, right: 6, zIndex: 2 }}><Icon name="star" size={16} color={C.gold} fill={C.gold} /></View>}
               <Image source={{ uri: c.img }} style={{ width: cw - 24, height: cw * 0.72, marginTop: free ? 14 : 0 }} contentFit="contain" />
               <Text numberOfLines={2} style={{ textAlign: 'center', fontWeight: '700', fontSize: 14, minHeight: 34, paddingHorizontal: 4 }}>{c.name}</Text>
               <Text style={{ color: free ? C.dim : C.green, fontWeight: '700', fontSize: 15 }}>{money(casePrice(c, prices))}</Text>
@@ -100,11 +101,11 @@ function CaseList() {
   );
 }
 
-function QuickTile(p: { icon: string; title: string; sub: string; hot?: boolean; onPress: () => void }) {
+function QuickTile(p: { icon: IconName; title: string; sub: string; hot?: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={p.onPress} style={{ flex: 1, margin: 4 }}>
       <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: p.hot ? C.green : C.line }}>
-        <Text style={{ fontSize: 30 }}>{p.icon}</Text>
+        <Icon name={p.icon} size={30} color={p.hot ? C.green : C.text} />
         <Text style={{ fontWeight: '700', fontSize: 14 }}>{p.title}</Text>
         <Text style={{ color: p.hot ? C.green : C.dim, fontWeight: '700', fontSize: 14 }}>{p.sub}</Text>
       </View>
@@ -298,7 +299,7 @@ function CaseDetail({ id }: { id: string }) {
           </Text>
         )}
 
-        <Btn label={busy ? 'Açılıyor…' : count > 1 ? `${count} Kasa Aç` : 'Kilidi Aç'} icon={busy ? undefined : '🔓'} disabled={busy || !canOpen} onPress={go}
+        <Btn label={busy ? 'Açılıyor…' : count > 1 ? `${count} Kasa Aç` : 'Kilidi Aç'} icon={busy ? undefined : 'unlock'} disabled={busy || !canOpen} onPress={go}
           sub={undefined} />
         <Text style={{ textAlign: 'center', color: C.dim, marginVertical: 6, fontSize: 15 }}>
           {freeHave >= count ? `Ücretsiz kasa kullanılacak (kalan ${freeHave})` : `Anahtar + Kasa: ${money(costFor(count))}${freeHave ? ` (${Math.min(freeHave, count)} ücretsiz)` : ''}`}
@@ -308,8 +309,8 @@ function CaseDetail({ id }: { id: string }) {
         {/* Ayarlar */}
         <View style={[st.card, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 10 }]}>
           <Toggle label="Oto-Çevir" on={g.autoSpin} onPress={() => setOpt('autoSpin', !g.autoSpin)} />
-          <Toggle label="Oto Tut/Sat" on={g.autoSell.on} onPress={() => setAutoSell(!g.autoSell.on)} onGear={() => setAsOpen(true)} />
-          <Toggle label="Hızlı ⚡" on={g.quick} onPress={() => setOpt('quick', !g.quick)} />
+          <Toggle label="Oto-Sat" note={g.autoSell.on ? `<${money(g.autoSell.max)} satılır` : undefined} on={g.autoSell.on} onPress={() => setAutoSell(!g.autoSell.on)} onGear={() => setAsOpen(true)} />
+          <Toggle label="Hızlı" on={g.quick} onPress={() => setOpt('quick', !g.quick)} />
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
@@ -419,20 +420,6 @@ function CaseDetail({ id }: { id: string }) {
         </View>
         <Btn label="Tamam" onPress={() => setAsOpen(false)} />
       </Sheet>
-    </View>
-  );
-}
-
-function Toggle(p: { label: string; on: boolean; onPress: () => void; onGear?: () => void }) {
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Pressable onPress={p.onPress} style={{ width: 52, height: 28, borderRadius: 14, backgroundColor: p.on ? '#4f7a2a' : C.card2, justifyContent: 'center', paddingHorizontal: 3 }}>
-        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: p.on ? '#d8f2b6' : '#566', alignSelf: p.on ? 'flex-end' : 'flex-start' }} />
-      </Pressable>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-        <Text style={{ color: C.dim, fontWeight: '700', fontSize: 13 }}>{p.label}</Text>
-        {p.onGear && <Pressable hitSlop={10} onPress={p.onGear}><Text style={{ marginLeft: 4 }}>⚙️</Text></Pressable>}
-      </View>
     </View>
   );
 }

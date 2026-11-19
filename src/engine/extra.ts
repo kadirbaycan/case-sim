@@ -55,7 +55,7 @@ const POOL: { type: MissionType; name: (n: number) => string; opts: number[]; st
   { type: 'covert', name: (n) => `${n} Covert veya üstü çıkar`, opts: [1], stars: [25], cash: [3] },
 ];
 export const missionName = (m: Mission) => POOL.find((p) => p.type === m.type)!.name(m.target);
-export const MISSION_ICON: Record<MissionType, string> = { open: '📦', sell: '💰', spend: '💸', upgrade: '⚡', trade: '🔁', tap: '👆', covert: '🔥' };
+export const MISSION_ICON: Record<MissionType, string> = { open: 'box', sell: 'tag', spend: 'coin', upgrade: 'bolt', trade: 'swap', tap: 'target', covert: 'fire' };
 
 export const dayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 

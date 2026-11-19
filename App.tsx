@@ -8,6 +8,7 @@ import { levelFromXp } from './src/engine/game';
 import { useGame } from './src/store/game';
 import { usePrices } from './src/store/prices';
 import { Tab, useNav } from './src/nav';
+import { Icon, IconName } from './src/icons';
 import { Bar, Sheet, Text, Toast, UndoBar, money, C } from './src/ui';
 import Cases from './src/screens/Cases';
 import Inventory from './src/screens/Inventory';
@@ -30,7 +31,7 @@ function TopBar() {
       </Pressable>
       <Pressable onPress={() => setProfile(true)} style={{ flexDirection: 'row', alignItems: 'center' }}>
         <LinearGradient colors={['#43506b', '#2a3246']} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.blue }}>
-          <Text style={{ fontSize: 22 }}>🎯</Text>
+          <Icon name="user" size={22} color={C.gold} />
         </LinearGradient>
         <View style={{ marginLeft: 8, width: 92 }}>
           <Text style={{ fontWeight: '700', fontSize: 18, lineHeight: 20 }}>SV. {lv.level}</Text>
@@ -43,12 +44,12 @@ function TopBar() {
   );
 }
 
-const TABS: { k: Tab; icon: string; label: string }[] = [
-  { k: 'cases', icon: '📦', label: 'Kasalar' },
-  { k: 'inv', icon: '🎒', label: 'Envanter' },
-  { k: 'contracts', icon: '📋', label: 'Kontratlar' },
-  { k: 'games', icon: '🎮', label: 'Oyunlar' },
-  { k: 'store', icon: '🛍️', label: 'Mağaza' },
+const TABS: { k: Tab; icon: IconName; label: string }[] = [
+  { k: 'cases', icon: 'box', label: 'Kasalar' },
+  { k: 'inv', icon: 'bag', label: 'Envanter' },
+  { k: 'contracts', icon: 'swap', label: 'Kontratlar' },
+  { k: 'games', icon: 'game', label: 'Oyunlar' },
+  { k: 'store', icon: 'store', label: 'Mağaza' },
 ];
 
 function TabBar() {
@@ -63,7 +64,7 @@ function TabBar() {
           <Pressable key={t.k} style={{ flex: 1, alignItems: 'center', paddingVertical: 2 }}
             onPress={() => { if (on && t.k === 'cases' && caseId) openCase(null); else if (on && t.k === 'games' && games) openGame(null); else setTab(t.k); }}>
             {on && <View style={{ position: 'absolute', top: -7, width: 34, height: 3, borderRadius: 2, backgroundColor: C.green }} />}
-            <Text style={{ fontSize: 22, opacity: on ? 1 : 0.55 }}>{t.icon}</Text>
+            <Icon name={t.icon} size={24} color={on ? C.green : C.dim} />
             <Text style={{ fontSize: 12, fontWeight: '700', color: on ? C.text : C.dim }}>{t.label}</Text>
             {t.k === 'contracts' && mDone > 0 && <View style={{ position: 'absolute', top: 0, right: '28%', minWidth: 16, height: 16, borderRadius: 8, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#000', fontSize: 11, fontWeight: '700' }}>{mDone}</Text></View>}
           </Pressable>

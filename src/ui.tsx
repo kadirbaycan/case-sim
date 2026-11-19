@@ -5,7 +5,8 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Item, Prices, SKINS, TIER_COLOR, WEARS, itemName, itemPrice, wearIndex } from './engine/game';
-import { T } from './theme';
+import { T, TIER_SYM } from './theme';
+import { Icon, IconName } from './icons';
 import { useGame } from './store/game';
 import { haptic } from './sound';
 
@@ -31,7 +32,7 @@ const KIND: Record<BtnKind, [string, string, string]> = {
 
 export function Btn(p: {
   label: string; onPress: () => void; kind?: BtnKind; disabled?: boolean; small?: boolean;
-  style?: StyleProp<ViewStyle>; sub?: string; icon?: string;
+  style?: StyleProp<ViewStyle>; sub?: string; icon?: IconName;
   hold?: boolean; // geri dönüşsüz/yüksek tutarlı işlem: 800 ms basılı tut
 }) {
   const [a, b, fg] = KIND[p.kind || 'primary'];
@@ -67,7 +68,7 @@ export function Btn(p: {
         {p.hold ? (
           <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ffffff40', width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
         ) : null}
-        {p.icon ? <Text style={{ fontSize: p.small ? 15 : 20, marginRight: 8 }}>{p.icon}</Text> : null}
+        {p.icon ? <View style={{ marginRight: 8 }}><Icon name={p.icon} size={p.small ? 16 : 20} color={fg} /></View> : null}
         <View style={{ alignItems: 'center' }}>
           <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 14 : 19, letterSpacing: 1.2, textTransform: 'uppercase' }}>{label}</Text>
           {p.sub ? <Text style={{ color: fg, fontSize: 11, opacity: 0.8 }}>{p.sub}</Text> : null}
@@ -77,10 +78,10 @@ export function Btn(p: {
   );
 }
 
-export function Chip(p: { label: string; on?: boolean; onPress: () => void; icon?: string; dot?: boolean }) {
+export function Chip(p: { label: string; on?: boolean; onPress: () => void; icon?: IconName; dot?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: !!p.on }} hitSlop={{ top: 4, bottom: 4 }} onPress={p.onPress} style={{ backgroundColor: p.on ? '#2f3b52' : T.card, borderRadius: 10, paddingHorizontal: 14, height: 36, justifyContent: 'center', marginRight: 6, borderWidth: 1, borderColor: p.on ? T.blue : T.line }}>
-      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 }}>{p.on ? '✓ ' : ''}{p.icon ? p.icon + ' ' : ''}{p.label}</Text>
+      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 }}>{p.on ? '✓ ' : ''}{p.label}</Text>
       {p.dot ? <View style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: T.green }} /> : null}
     </Pressable>
   );
@@ -123,11 +124,11 @@ export function ItemTile(p: {
         <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#000a', paddingHorizontal: 6, borderRadius: 6 }}>
           <Text style={{ color: T.green, fontWeight: '700', fontSize: 13 }}>{pr.est ? '~' : ''}{money(pr.p)}</Text>
         </View>
-        {p.selected ? <View style={{ position: 'absolute', zIndex: 3, right: 5, bottom: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#000', fontWeight: '700', fontSize: 14 }}>✓</Text></View> : null}
+        {p.selected ? <View style={{ position: 'absolute', zIndex: 3, right: 5, bottom: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={14} color="#000" stroke={3} /></View> : null}
         {p.item.st && <Text style={{ position: 'absolute', zIndex: 2, right: 5, top: 4, color: '#cf6a32', fontWeight: '700', fontSize: 11 }}>ST™</Text>}
         <Image source={{ uri: sk.img }} style={{ width: '100%', height: p.w * 0.6, marginTop: 16 }} contentFit="contain" />
         <View style={{ paddingHorizontal: 7, paddingBottom: 5 }}>
-          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 14 }}>{pattern || weapon}{sk.ph ? ` (${sk.ph})` : ''}</Text>
+          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 14 }}><Text style={{ color: col, fontSize: 12 }}>{TIER_SYM[sk.t]} </Text>{pattern || weapon}{sk.ph ? ` (${sk.ph})` : ''}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text numberOfLines={1} style={{ color: T.dim, fontSize: 12, flex: 1 }}>{pattern ? weapon : ''}</Text>
             <Text style={{ color: T.dim, fontSize: 12 }}>{wear}{sk.v ? '' : ' ' + p.item.float.toFixed(3)}</Text>
@@ -156,6 +157,73 @@ export function Toast({ text, id }: { text: string | null; id: number }) {
     <Animated.View pointerEvents="none" accessibilityLiveRegion="polite" accessibilityRole="alert" style={{ position: 'absolute', top: 48, left: 16, right: 16, zIndex: 99, transform: [{ translateY: y }], backgroundColor: '#1d2a1d', borderColor: T.green, borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' }}>
       <Text style={{ color: T.green, fontWeight: '700', fontSize: 16 }}>{text}</Text>
     </Animated.View>
+  );
+}
+
+// Etiketli anahtar: renk + "AÇIK/KAPALI" sözcüğü + isteğe bağlı durum açıklaması
+export function Toggle(p: { label: string; on: boolean; onPress: () => void; onGear?: () => void; note?: string }) {
+  return (
+    <View style={{ alignItems: 'center', minWidth: 72 }}>
+      <Pressable accessibilityRole="switch" accessibilityLabel={p.label} accessibilityState={{ checked: p.on }} hitSlop={{ top: 8, bottom: 4, left: 4, right: 4 }}
+        onPress={p.onPress} style={{ width: 52, height: 28, borderRadius: 14, backgroundColor: p.on ? '#4f7a2a' : T.card2, borderWidth: 1, borderColor: p.on ? '#6c9a3c' : T.line, justifyContent: 'center', paddingHorizontal: 3 }}>
+        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: p.on ? '#d8f2b6' : '#566', alignSelf: p.on ? 'flex-end' : 'flex-start' }} />
+      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+        <Text style={{ color: p.on ? T.green : T.dim, fontWeight: '700', fontSize: 13 }}>{p.label} {p.on ? 'AÇIK' : 'KAPALI'}</Text>
+        {p.onGear && (
+          <Pressable accessibilityRole="button" accessibilityLabel={`${p.label} ayarları`} hitSlop={12} onPress={p.onGear} style={{ marginLeft: 4 }}>
+            <Icon name="gear" size={16} color={T.dim} />
+          </Pressable>
+        )}
+      </View>
+      {p.note ? <Text style={{ color: T.dim, fontSize: 11 }}>{p.note}</Text> : null}
+    </View>
+  );
+}
+
+export function Segmented<K extends string>(p: { items: { k: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+  return (
+    <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: T.card, borderRadius: 12, padding: 3, height: 44 }}>
+      {p.items.map((i) => {
+        const on = i.k === p.value;
+        return (
+          <Pressable key={i.k} accessibilityRole="tab" accessibilityLabel={i.label} accessibilityState={{ selected: on }} onPress={() => p.onChange(i.k)}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: on ? T.card2 : 'transparent', borderBottomWidth: on ? 2 : 0, borderBottomColor: T.gold }}>
+            <Text style={{ fontWeight: '700', fontSize: 15, color: on ? T.text : T.dim, letterSpacing: 0.5 }}>{i.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Nadirlik: renk + sembol (+ ad)
+export function RarityBadge({ tier, name }: { tier: number; name?: boolean }) {
+  const col = (require('./engine/game') as typeof import('./engine/game')).TIER_COLOR[tier];
+  const nm = (require('./engine/game') as typeof import('./engine/game')).TIER_NAME[tier];
+  return (
+    <View accessible accessibilityLabel={nm} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: col + '33', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, alignSelf: 'flex-start' }}>
+      <Text style={{ color: col, fontSize: 12, fontWeight: '700' }}>{TIER_SYM[tier]}{name ? ' ' + nm : ''}</Text>
+    </View>
+  );
+}
+
+// Fiyat: "~" tahmini, eski veri ipucu
+export function PriceText({ v, est, style }: { v: number; est?: boolean; style?: StyleProp<TextStyle> }) {
+  return (
+    <Text accessibilityLabel={`${est ? 'tahmini ' : ''}${v.toFixed(2)} dolar`} style={[{ color: T.green, fontWeight: '700', fontSize: 15 }, style]}>
+      {est ? '~' : ''}{money(v)}
+    </Text>
+  );
+}
+
+export function EmptyState(p: { icon: IconName; text: string; action?: { label: string; onPress: () => void } }) {
+  return (
+    <View style={{ alignItems: 'center', padding: 28 }}>
+      <Icon name={p.icon} size={48} color={T.dim} />
+      <Text style={{ color: T.dim, fontSize: 16, textAlign: 'center', marginTop: 10 }}>{p.text}</Text>
+      {p.action ? <Btn small label={p.action.label} onPress={p.action.onPress} style={{ marginTop: 14 }} /> : null}
+    </View>
   );
 }
 

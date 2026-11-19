@@ -7,6 +7,7 @@ import { usePrices } from '../store/prices';
 import { useNav } from '../nav';
 import { play } from '../sound';
 import { Btn, C, Chip, ItemTile, Sheet, Text, money, st } from '../ui';
+import { Icon } from '../icons';
 
 const W = Dimensions.get('window').width;
 type Sort = 'value' | 'rarity' | 'float' | 'az' | 'new';
@@ -68,7 +69,7 @@ export default function Inventory() {
         initialNumToRender={12} windowSize={7}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 50 }}>
-            <Text style={{ fontSize: 46 }}>🎒</Text>
+            <Icon name="bag" size={46} color={C.dim} />
             <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 8 }}>Envanter boş</Text>
             <Btn small label="Kasalara git" onPress={() => setTab('cases')} style={{ marginTop: 14 }} />
           </View>
@@ -114,7 +115,7 @@ function Detail({ item, onClose, onSell, onUp }: { item: Item | null; onClose: (
       </Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Btn style={{ flex: 1 }} kind="gold" hold={pr.p * SELL_RATE >= 30} label={`Sat ${money(pr.p * SELL_RATE)}`} onPress={() => onSell(item.uid)} />
-        <Btn style={{ flex: 1 }} kind="blue" label="Upgrade" icon="⚡" onPress={() => onUp(item.uid)} />
+        <Btn style={{ flex: 1 }} kind="blue" label="Upgrade" icon="bolt" onPress={() => onUp(item.uid)} />
       </View>
     </Sheet>
   );

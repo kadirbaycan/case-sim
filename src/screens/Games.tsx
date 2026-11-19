@@ -8,6 +8,7 @@ import { usePrices } from '../store/prices';
 import { useNav } from '../nav';
 import { play, winSfx, haptic } from '../sound';
 import { Bar, Btn, C, Chip, ItemTile, Sheet, Text, money, st } from '../ui';
+import { Icon, IconName } from '../icons';
 
 const W = Dimensions.get('window').width;
 
@@ -26,12 +27,12 @@ function Hub() {
   const setContracts = useNav((n) => n.setContracts);
   const lvl = levelFromXp(xp).level;
   const say = useGame((x) => x.say);
-  const tiles: { icon: string; name: string; sub: string; lock: number; colors: [string, string]; on: () => void }[] = [
-    { icon: '⚡', name: 'Upgrade', sub: 'Eşyanı yükselt', lock: 5, colors: ['#3a1b1b', '#1b1218'], on: () => openGame('upgrade') },
-    { icon: '🔁', name: 'Takas', sub: '10 → 1 kontrat', lock: 3, colors: ['#2a2415', '#15130c'], on: () => { setContracts('trade'); setTab('contracts'); } },
-    { icon: '🪙', name: 'Coinflip', sub: 'Yazı mı tura mı', lock: 10, colors: ['#122241', '#0e1424'], on: () => openGame('coin') },
-    { icon: '👆', name: 'Tıklayıcı', sub: 'Para bitince', lock: 1, colors: ['#12301a', '#0d1b11'], on: () => openGame('click') },
-    { icon: '⚔️', name: 'Case Battle', sub: 'Botlara karşı · yakında', lock: 99, colors: ['#2b1530', '#150e1d'], on: () => say('Case Battle bir sonraki güncellemede') },
+  const tiles: { icon: IconName; name: string; sub: string; lock: number; colors: [string, string]; on: () => void }[] = [
+    { icon: 'bolt', name: 'Upgrade', sub: 'Eşyanı yükselt', lock: 5, colors: ['#3a1b1b', '#1b1218'], on: () => openGame('upgrade') },
+    { icon: 'swap', name: 'Takas', sub: '10 → 1 kontrat', lock: 3, colors: ['#2a2415', '#15130c'], on: () => { setContracts('trade'); setTab('contracts'); } },
+    { icon: 'coin', name: 'Coinflip', sub: 'Yazı mı tura mı', lock: 10, colors: ['#122241', '#0e1424'], on: () => openGame('coin') },
+    { icon: 'target', name: 'Tıklayıcı', sub: 'Para bitince', lock: 1, colors: ['#12301a', '#0d1b11'], on: () => openGame('click') },
+    { icon: 'swords', name: 'Case Battle', sub: 'Botlara karşı · yakında', lock: 99, colors: ['#2b1530', '#150e1d'], on: () => say('Case Battle bir sonraki güncellemede') },
   ];
   return (
     <ScrollView contentContainerStyle={{ padding: 9, flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -40,9 +41,9 @@ function Hub() {
         return (
           <Pressable key={t.name} disabled={locked} onPress={t.on} style={{ width: '50%', padding: 4 }}>
             <LinearGradient colors={t.colors} style={{ height: 150, borderRadius: 16, alignItems: 'center', justifyContent: 'center', opacity: locked ? 0.5 : 1, borderWidth: 1, borderColor: C.line }}>
-              <Text style={{ fontSize: 50 }}>{t.icon}</Text>
+              <Icon name={t.icon} size={52} color={locked ? C.dim : C.text} />
               <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 4 }}>{t.name}</Text>
-              <Text style={{ color: C.dim, fontSize: 13 }}>{locked ? `🔒 Sv.${t.lock}'te açılır` : t.sub}</Text>
+              <Text style={{ color: C.dim, fontSize: 13 }}>{locked ? `Kilitli · Sv.${t.lock}'te açılır` : t.sub}</Text>
             </LinearGradient>
           </Pressable>
         );
@@ -155,7 +156,7 @@ function Upgrader() {
             <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, width: 4, backgroundColor: '#fff', left: pos.interpolate({ inputRange: [0, 1], outputRange: ['0%', '99%'] }) }} />
           </View>
           <Text style={[st.dim, { textAlign: 'center', marginVertical: 6 }]}>Kazanma şansı %{(chance * 100).toFixed(2)} (ev payı %5)</Text>
-          <Btn kind="gold" hold={value >= 30} label={busy ? 'Dönüyor…' : 'Yükselt'} icon="⚡" disabled={busy} onPress={go} />
+          <Btn kind="gold" hold={value >= 30} label={busy ? 'Dönüyor…' : 'Yükselt'} icon="bolt" disabled={busy} onPress={go} />
           <Text style={[st.dim, { textAlign: 'center', marginTop: 6 }]}>Kaybedersen eşya yanar ({money(value)})</Text>
         </View>
       )}
@@ -207,13 +208,13 @@ function Coinflip() {
     <ScrollView contentContainerStyle={{ padding: 14, alignItems: 'center' }}>
       <View style={{ height: 190, justifyContent: 'center' }}>
         <Animated.View style={{ width: 130, height: 130, borderRadius: 65, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center', borderWidth: 6, borderColor: '#b78a1e', transform: [{ perspective: 600 }, { rotateY }] }}>
-          <Text style={{ fontSize: 56, color: '#5a3d00' }}>{last ? (last.heads ? '🦅' : '🔰') : '🪙'}</Text>
+          {last ? <Text style={{ fontSize: 34, fontWeight: '700', color: '#5a3d00', letterSpacing: 2 }}>{last.heads ? 'YAZI' : 'TURA'}</Text> : <Icon name="coin" size={64} color="#5a3d00" />}
         </Animated.View>
       </View>
       {last && <Text style={{ fontSize: 28, fontWeight: '700', color: last.win ? C.green : C.red }}>{last.win ? `+${money(bet * 0.9)}` : `-${money(bet)}`}</Text>}
       <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
-        <Chip label="🦅 YAZI" on={heads} onPress={() => setHeads(true)} />
-        <Chip label="🔰 TURA" on={!heads} onPress={() => setHeads(false)} />
+        <Chip label="YAZI" on={heads} onPress={() => setHeads(true)} />
+        <Chip label="TURA" on={!heads} onPress={() => setHeads(false)} />
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
         {bets.map((b) => <Chip key={b} label={`$${b}`} on={bet === b} onPress={() => setBet(b)} />)}
@@ -262,7 +263,7 @@ function Clicker() {
       <Pressable onPress={tap} style={{ alignItems: 'center', marginVertical: 14 }}>
         <Animated.View style={{ transform: [{ scale }] }}>
           <LinearGradient colors={['#6c9a3c', '#3f6a22']} style={{ width: 220, height: 220, borderRadius: 110, alignItems: 'center', justifyContent: 'center', borderWidth: 6, borderColor: '#2b4c17' }}>
-            <Text style={{ fontSize: 60 }}>💵</Text>
+            <Icon name="coin" size={64} color="#eaf7d8" />
             <Text style={{ fontWeight: '700', fontSize: 26 }}>+{money(per)}</Text>
             <Text style={{ color: '#d6efbd' }}>Bu oturum: {shown}</Text>
           </LinearGradient>
