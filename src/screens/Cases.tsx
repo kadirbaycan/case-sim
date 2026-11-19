@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import {
-  CASES, CaseDef, Item, KEY_PRICE, Rng, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
+  CASES, CASE_BY_ID, CaseDef, Item, KEY_PRICE, Rng, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
   rollCase, tierWeights, basePrice,
 } from '../engine/game';
 import { dropPercent, fmtRange, fmtTime, priceRange } from '../engine/extra';
@@ -38,6 +38,7 @@ function CaseList() {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
+  const unseen = useGame((x) => x.unseen);
   const ready = now >= supplyAt;
   const freeTotal = Object.values(freeCases).reduce((a, b) => a + Math.max(0, b), 0);
   const wheelReady = spinDay !== `${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`;
@@ -54,6 +55,12 @@ function CaseList() {
   const cw = (W - GUT * 2) / 3;
   const header = (
     <View>
+      {unseen && CASE_BY_ID[unseen.caseId] ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Açılmamış sonucu göster" onPress={() => openCase(unseen.caseId)}
+          style={{ marginHorizontal: GUT, marginBottom: 10, backgroundColor: C.card2, borderColor: C.gold, borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 52, justifyContent: 'center' }}>
+          <Text style={{ color: C.gold, fontWeight: '700', fontSize: 16 }}>Görmediğin sonuç var · {CASE_BY_ID[unseen.caseId].name} (gör)</Text>
+        </Pressable>
+      ) : null}
       <View style={{ flexDirection: 'row', paddingHorizontal: GUT - 4, marginBottom: 10 }}>
         <QuickTile icon="📦" title="Supply Drop" sub={ready ? 'AL!' : fmtTime(supplyAt - now)} hot={ready}
           onPress={() => { if (!ready) return say(`Sonraki drop: ${fmtTime(supplyAt - now)}`); claimSupply(); play('coin'); haptic('success'); }} />
@@ -119,6 +126,7 @@ function CaseDetail({ id }: { id: string }) {
   const setOpt = useGame((x) => x.setOpt);
   const setAutoSell = useGame((x) => x.setAutoSell);
   const say = useGame((x) => x.say);
+  const clearUnseen = useGame((x) => x.clearUnseen);
 
   const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -139,6 +147,15 @@ function CaseDetail({ id }: { id: string }) {
   const bob = useRef(new Animated.Value(0)).current;
 
   useEffect(() => () => { mounted.current = false; clearTimeout(autoTimer.current); }, []);
+  // D2: sonuç hiçbir koşulda görünmeden kaybolmaz — ekran yeniden açılınca sonuç sheet'i gelir
+  useEffect(() => {
+    const u = useGame.getState().unseen;
+    if (!u || u.caseId !== id) return;
+    const kept = useGame.getState().inv.filter((i) => u.uids.includes(i.uid));
+    if (kept.length) setSheet({ kept, sold: 0, soldN: 0, free: 0 });
+    else clearUnseen();
+  }, []);
+  const closeSheet = () => { setSheet(null); clearUnseen(); };
   useEffect(() => {
     Animated.loop(Animated.sequence([
       Animated.timing(bob, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -195,7 +212,7 @@ function CaseDetail({ id }: { id: string }) {
     if (g.autoSell.on) {
       const sellable = items.filter((i) => itemPrice(i, prices).p < g.autoSell.max && SKINS[i.skinId].t < 4);
       if (sellable.length) {
-        soldTotal = sell(sellable.map((i) => i.uid), prices);
+        soldTotal = sell(sellable.map((i) => i.uid), prices, false);
         soldN = sellable.length;
         const rm = new Set(sellable.map((i) => i.uid));
         kept = items.filter((i) => !rm.has(i.uid));
@@ -206,6 +223,7 @@ function CaseDetail({ id }: { id: string }) {
     setBusy(false);
     const auto = useGame.getState().autoSpin && top < 4;
     if (auto) {
+      clearUnseen();
       setSheet(null);
       setPending(kept);
       autoTimer.current = setTimeout(() => { if (mounted.current && useGame.getState().autoSpin) goRef.current(); else setPending(null); }, 1700);
@@ -218,7 +236,7 @@ function CaseDetail({ id }: { id: string }) {
   function go() {
     if (busy) return;
     const r = open(id, count, prices);
-    if (!r) { say('Yetersiz bakiye'); return; }
+    if (!r) { say(`Eksik ${money(Math.max(0, costFor(count) - g.balance))} · envanterden eşya sat`); return; }
     setPending(null);
     setBusy(true);
     const quick = g.quick || count > maxMulti;
@@ -348,7 +366,7 @@ function CaseDetail({ id }: { id: string }) {
       )}
 
       {/* Sonuç */}
-      <Sheet visible={!!sheet} onClose={() => setSheet(null)} full>
+      <Sheet visible={!!sheet} onClose={closeSheet} full>
         <Text style={[st.h1, { textAlign: 'center' }]}>{sheetItems.length > 1 ? `${sheetItems.length} eşya çıktı` : sheetItems.length === 1 ? 'Çıkan eşya' : 'Otomatik satıldı'}</Text>
         {sheet && sheet.soldN > 0 && <Text style={{ textAlign: 'center', color: C.green, marginTop: 2 }}>{sheet.soldN} eşya otomatik satıldı  +{money(sheet.sold)}</Text>}
         <ScrollView style={{ marginVertical: 8 }}>
@@ -360,16 +378,16 @@ function CaseDetail({ id }: { id: string }) {
             ))}
           </View>
         </ScrollView>
-        {sheetItems.length > 0 && <Text style={{ textAlign: 'center', color: C.green, fontWeight: '700', fontSize: 18 }}>Toplam {money(sheetVal)}  ·  satmak için dokun</Text>}
+        {sheetItems.length > 0 && <Text style={{ textAlign: 'center', color: C.green, fontWeight: '700', fontSize: 18 }}>Toplam {money(sheetVal)}  ·  satmak için işaretle (seçim yoksa hepsi)</Text>}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           {sheetItems.length > 0 && (
-            <Btn style={{ flex: 1 }} kind="gold" small label={selSheet.size ? `Seçilenleri sat ${money(selVal)}` : `Hepsini sat ${money(sheetVal * 0.9)}`}
+            <Btn style={{ flex: 1 }} kind="gold" small hold={(selSheet.size ? selVal : sheetVal * 0.9) >= 30} label={selSheet.size ? `Seçilenleri sat ${money(selVal)}` : `Hepsini sat ${money(sheetVal * 0.9)}`}
               onPress={() => {
                 const uids = selSheet.size ? [...selSheet] : sheetItems.map((i) => i.uid);
-                sell(uids, prices); play('coin'); setSheet(null);
+                sell(uids, prices); play('coin'); closeSheet();
               }} />
           )}
-          <Btn style={{ flex: 1 }} small label="Devam" onPress={() => setSheet(null)} />
+          <Btn style={{ flex: 1 }} small label="Devam" onPress={closeSheet} />
         </View>
       </Sheet>
 

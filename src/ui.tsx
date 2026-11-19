@@ -6,6 +6,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Item, Prices, SKINS, TIER_COLOR, WEARS, itemName, itemPrice, wearIndex } from './engine/game';
 import { T } from './theme';
+import { useGame } from './store/game';
+import { haptic } from './sound';
 
 export const C = T;
 export const money = (n: number) =>
@@ -30,14 +32,44 @@ const KIND: Record<BtnKind, [string, string, string]> = {
 export function Btn(p: {
   label: string; onPress: () => void; kind?: BtnKind; disabled?: boolean; small?: boolean;
   style?: StyleProp<ViewStyle>; sub?: string; icon?: string;
+  hold?: boolean; // geri dönüşsüz/yüksek tutarlı işlem: 800 ms basılı tut
 }) {
   const [a, b, fg] = KIND[p.kind || 'primary'];
+  const fill = useRef(new Animated.Value(0)).current;
+  const timer = useRef<any>(null);
+  const cancel = () => {
+    clearTimeout(timer.current);
+    Animated.timing(fill, { toValue: 0, duration: 120, useNativeDriver: false }).start();
+  };
+  const start = () => {
+    if (!p.hold || p.disabled) return;
+    haptic('light' as any);
+    fill.setValue(0);
+    Animated.timing(fill, { toValue: 1, duration: 800, useNativeDriver: false }).start();
+    timer.current = setTimeout(() => { fill.setValue(0); haptic('heavy' as any); p.onPress(); }, 800);
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const label = (p.hold ? 'Basılı tut · ' : '') + p.label;
   return (
-    <Pressable onPress={p.onPress} disabled={p.disabled} style={({ pressed }) => [{ opacity: p.disabled ? 0.4 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, p.style]}>
-      <LinearGradient colors={[a, b]} style={{ borderRadius: 12, minHeight: p.small ? 38 : 54, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderBottomWidth: 3, borderBottomColor: '#0006' }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={p.sub ? `${label}, ${p.sub}` : label}
+      accessibilityHint={p.hold ? 'Onay için basılı tutun' : undefined}
+      accessibilityState={{ disabled: !!p.disabled }}
+      accessibilityActions={p.hold ? [{ name: 'activate' }] : undefined}
+      onAccessibilityAction={p.hold ? () => p.onPress() : undefined}
+      onPress={p.hold ? undefined : p.onPress}
+      onPressIn={start}
+      onPressOut={p.hold ? cancel : undefined}
+      disabled={p.disabled}
+      style={({ pressed }) => [{ opacity: p.disabled ? 0.4 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, p.style]}>
+      <LinearGradient colors={[a, b]} style={{ borderRadius: 12, minHeight: p.small ? 44 : 54, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderBottomWidth: 3, borderBottomColor: '#0006', overflow: 'hidden' }}>
+        {p.hold ? (
+          <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ffffff40', width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
+        ) : null}
         {p.icon ? <Text style={{ fontSize: p.small ? 15 : 20, marginRight: 8 }}>{p.icon}</Text> : null}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 14 : 19, letterSpacing: 1.2, textTransform: 'uppercase' }}>{p.label}</Text>
+          <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 14 : 19, letterSpacing: 1.2, textTransform: 'uppercase' }}>{label}</Text>
           {p.sub ? <Text style={{ color: fg, fontSize: 11, opacity: 0.8 }}>{p.sub}</Text> : null}
         </View>
       </LinearGradient>
@@ -47,8 +79,8 @@ export function Btn(p: {
 
 export function Chip(p: { label: string; on?: boolean; onPress: () => void; icon?: string; dot?: boolean }) {
   return (
-    <Pressable onPress={p.onPress} style={{ backgroundColor: p.on ? '#2f3b52' : T.card, borderRadius: 10, paddingHorizontal: 14, height: 36, justifyContent: 'center', marginRight: 6, borderWidth: 1, borderColor: p.on ? T.blue : T.line }}>
-      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 }}>{p.icon ? p.icon + ' ' : ''}{p.label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: !!p.on }} hitSlop={{ top: 4, bottom: 4 }} onPress={p.onPress} style={{ backgroundColor: p.on ? '#2f3b52' : T.card, borderRadius: 10, paddingHorizontal: 14, height: 36, justifyContent: 'center', marginRight: 6, borderWidth: 1, borderColor: p.on ? T.blue : T.line }}>
+      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 }}>{p.on ? '✓ ' : ''}{p.icon ? p.icon + ' ' : ''}{p.label}</Text>
       {p.dot ? <View style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: T.green }} /> : null}
     </Pressable>
   );
@@ -65,7 +97,7 @@ export function Bar(p: { v: number; color?: string; h?: number; style?: StylePro
 export function Sheet(p: { visible: boolean; onClose: () => void; children: React.ReactNode; full?: boolean }) {
   return (
     <Modal visible={p.visible} transparent animationType="slide" onRequestClose={p.onClose} statusBarTranslucent>
-      <Pressable style={{ flex: 1, backgroundColor: '#000b', justifyContent: 'flex-end' }} onPress={p.onClose}>
+      <Pressable accessibilityLabel="Kapat" style={{ flex: 1, backgroundColor: '#000b', justifyContent: 'flex-end' }} onPress={p.onClose}>
         <Pressable onPress={() => {}} style={{ backgroundColor: T.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 14, maxHeight: p.full ? '94%' : '86%', borderTopWidth: 1, borderColor: T.line }}>
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: T.line, marginBottom: 10 }} />
           {p.children}
@@ -85,12 +117,13 @@ export function ItemTile(p: {
   const [weapon, pattern] = sk.n.includes(' | ') ? sk.n.split(' | ') : [sk.n, ''];
   const wear = sk.v ? '' : WEARS[wearIndex(p.item.float)].short;
   return (
-    <Pressable onPress={p.onPress} onLongPress={p.onLongPress} style={{ width: p.w, padding: 3 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${sk.n}${sk.ph ? ' ' + sk.ph : ''}, ${wear || 'özel'}${sk.v ? '' : ', float ' + p.item.float.toFixed(3)}, ${p.item.st ? 'StatTrak, ' : ''}${pr.est ? 'tahmini ' : ''}${pr.p.toFixed(2)} dolar`} accessibilityState={{ selected: !!p.selected }} onPress={p.onPress} onLongPress={p.onLongPress} style={{ width: p.w, padding: 3 }}>
       <View style={{ backgroundColor: T.card, borderRadius: 12, overflow: 'hidden', borderWidth: p.selected ? 2 : 0, borderColor: T.blue }}>
         <LinearGradient colors={[col + '33', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '70%' }} />
         <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#000a', paddingHorizontal: 6, borderRadius: 6 }}>
           <Text style={{ color: T.green, fontWeight: '700', fontSize: 13 }}>{pr.est ? '~' : ''}{money(pr.p)}</Text>
         </View>
+        {p.selected ? <View style={{ position: 'absolute', zIndex: 3, right: 5, bottom: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#000', fontWeight: '700', fontSize: 14 }}>✓</Text></View> : null}
         {p.item.st && <Text style={{ position: 'absolute', zIndex: 2, right: 5, top: 4, color: '#cf6a32', fontWeight: '700', fontSize: 11 }}>ST™</Text>}
         <Image source={{ uri: sk.img }} style={{ width: '100%', height: p.w * 0.6, marginTop: 16 }} contentFit="contain" />
         <View style={{ paddingHorizontal: 7, paddingBottom: 5 }}>
@@ -120,9 +153,30 @@ export function Toast({ text, id }: { text: string | null; id: number }) {
   }, [id]);
   if (!text) return null;
   return (
-    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 48, left: 16, right: 16, zIndex: 99, transform: [{ translateY: y }], backgroundColor: '#1d2a1d', borderColor: T.green, borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' }}>
+    <Animated.View pointerEvents="none" accessibilityLiveRegion="polite" accessibilityRole="alert" style={{ position: 'absolute', top: 48, left: 16, right: 16, zIndex: 99, transform: [{ translateY: y }], backgroundColor: '#1d2a1d', borderColor: T.green, borderWidth: 1, borderRadius: 12, padding: 12, alignItems: 'center' }}>
       <Text style={{ color: T.green, fontWeight: '700', fontSize: 16 }}>{text}</Text>
     </Animated.View>
+  );
+}
+
+// Satış sonrası 5 sn "Geri al"
+export function UndoBar() {
+  const undo = useGame((x) => x.undo);
+  const undoSell = useGame((x) => x.undoSell);
+  const clear = useGame((x) => x.clearUndo);
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(clear, Math.max(0, undo.ts + 5000 - Date.now()));
+    return () => clearTimeout(t);
+  }, [undo?.ts]);
+  if (!undo) return null;
+  return (
+    <View accessibilityLiveRegion="polite" style={{ position: 'absolute', left: 16, right: 16, bottom: 88, zIndex: 98, backgroundColor: T.card2, borderColor: T.line, borderWidth: 1, borderRadius: 12, paddingLeft: 14, paddingRight: 6, minHeight: 52, flexDirection: 'row', alignItems: 'center' }}>
+      <Text style={{ flex: 1, fontWeight: '700', fontSize: 15 }}>{undo.items.length} eşya satıldı +{money(undo.total)}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Satışı geri al" onPress={() => { undoSell(); haptic('light' as any); }} style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }}>
+        <Text style={{ color: T.gold, fontWeight: '700', fontSize: 16, letterSpacing: 1 }}>GERİ AL</Text>
+      </Pressable>
+    </View>
   );
 }
 

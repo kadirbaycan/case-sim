@@ -37,10 +37,15 @@ type G = {
   massOpen: boolean; xpBoostUntil: number; rewardedLevel: number;
   toast: { id: number; text: string } | null;
   hydrated: boolean;
+  unseen: { caseId: string; uids: string[] } | null;
+  undo: { items: Item[]; total: number; ts: number } | null;
 
   ensureDaily: () => void;
   open: (caseId: string, count: number, prices: Prices) => { items: Item[]; free: number; cost: number } | null;
-  sell: (uids: string[], prices: Prices) => number;
+  sell: (uids: string[], prices: Prices, undoable?: boolean) => number;
+  undoSell: () => void;
+  clearUndo: () => void;
+  clearUnseen: () => void;
   upgrade: (inputUid: string, targetSkinId: string, targetFloat: number, prices: Prices) => { win: boolean; chance: number; item?: Item } | null;
   trade: (uids: string[]) => Item | null;
   coinflip: (bet: number, pickHeads: boolean) => { win: boolean; heads: boolean } | null;
@@ -123,7 +128,7 @@ export const useGame = create<G>()(
       stars: 0, seasonStart: Date.now(), seasonClaimed: [],
       supplyAt: 0, spinDay: '', pendingPrize: null,
       massOpen: false, xpBoostUntil: 0, rewardedLevel: 1,
-      toast: null, hydrated: false,
+      toast: null, hydrated: false, unseen: null, undo: null,
 
       ensureDaily: () => {
         const g = get();
@@ -164,25 +169,43 @@ export const useGame = create<G>()(
         set({
           ...base, ...withXp(base, count * 30 + Math.round(cost * 15)),
           inv: [...items, ...g.inv], seeds: { ...g.seeds, nonce }, stats: st,
+          unseen: { caseId, uids: items.map((i) => i.uid) },
           perCase: { ...g.perCase, [caseId]: (g.perCase[caseId] || 0) + count },
         });
         return { items, free, cost };
       },
 
-      sell: (uids, prices) => {
+      sell: (uids, prices, undoable = true) => {
         const g = get();
         const rm = new Set(uids);
         let total = 0, n = 0;
-        for (const it of g.inv) if (rm.has(it.uid)) { total += itemPrice(it, prices).p * SELL_RATE; n++; }
+        const gone: Item[] = [];
+        for (const it of g.inv) if (rm.has(it.uid)) { total += itemPrice(it, prices).p * SELL_RATE; n++; gone.push(it); }
         total = r2(total);
         set({
           balance: r2(g.balance + total),
           inv: g.inv.filter((i) => !rm.has(i.uid)),
           stats: { ...g.stats, earned: r2(g.stats.earned + total) },
           missions: bump(g, 'sell', n),
+          undo: undoable && n ? { items: gone, total, ts: Date.now() } : g.undo,
         });
         return total;
       },
+
+      undoSell: () => {
+        const g = get();
+        const u = g.undo;
+        if (!u) return;
+        set({
+          balance: r2(Math.max(0, g.balance - u.total)),
+          inv: [...u.items, ...g.inv],
+          stats: { ...g.stats, earned: r2(Math.max(0, g.stats.earned - u.total)) },
+          undo: null,
+          toast: { id: toastId++, text: 'Satış geri alındı' },
+        });
+      },
+      clearUndo: () => set({ undo: null }),
+      clearUnseen: () => set({ unseen: null }),
 
       upgrade: (inputUid, targetSkinId, targetFloat, prices) => {
         const g = get();
@@ -357,7 +380,7 @@ export const useGame = create<G>()(
         sfx: s.sfx, quick: s.quick, autoSpin: s.autoSpin, autoSell: s.autoSell, favs: s.favs,
         freeCases: s.freeCases, perCase: s.perCase, missions: s.missions, stars: s.stars,
         seasonStart: s.seasonStart, seasonClaimed: s.seasonClaimed, supplyAt: s.supplyAt, spinDay: s.spinDay,
-        pendingPrize: s.pendingPrize, massOpen: s.massOpen, xpBoostUntil: s.xpBoostUntil, rewardedLevel: s.rewardedLevel,
+        unseen: s.unseen, pendingPrize: s.pendingPrize, massOpen: s.massOpen, xpBoostUntil: s.xpBoostUntil, rewardedLevel: s.rewardedLevel,
       }),
       migrate: (p) => p as any,
       merge: (persisted, current) => ({

@@ -8,7 +8,7 @@ import { levelFromXp } from './src/engine/game';
 import { useGame } from './src/store/game';
 import { usePrices } from './src/store/prices';
 import { Tab, useNav } from './src/nav';
-import { Bar, Sheet, Text, Toast, money, C } from './src/ui';
+import { Bar, Sheet, Text, Toast, UndoBar, money, C } from './src/ui';
 import Cases from './src/screens/Cases';
 import Inventory from './src/screens/Inventory';
 import Contracts from './src/screens/Contracts';
@@ -101,6 +101,7 @@ function Main() {
       <Sheet visible={profile} onClose={() => setProfile(false)} full>
         <Profile />
       </Sheet>
+      <UndoBar />
       <Toast text={toast?.text ?? null} id={toast?.id ?? 0} />
     </View>
   );

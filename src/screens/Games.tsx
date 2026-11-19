@@ -155,7 +155,8 @@ function Upgrader() {
             <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, width: 4, backgroundColor: '#fff', left: pos.interpolate({ inputRange: [0, 1], outputRange: ['0%', '99%'] }) }} />
           </View>
           <Text style={[st.dim, { textAlign: 'center', marginVertical: 6 }]}>Kazanma şansı %{(chance * 100).toFixed(2)} (ev payı %5)</Text>
-          <Btn kind="gold" label={busy ? 'Dönüyor…' : 'Yükselt'} icon="⚡" disabled={busy} onPress={go} />
+          <Btn kind="gold" hold={value >= 30} label={busy ? 'Dönüyor…' : 'Yükselt'} icon="⚡" disabled={busy} onPress={go} />
+          <Text style={[st.dim, { textAlign: 'center', marginTop: 6 }]}>Kaybedersen eşya yanar ({money(value)})</Text>
         </View>
       )}
 
@@ -218,7 +219,7 @@ function Coinflip() {
         {bets.map((b) => <Chip key={b} label={`$${b}`} on={bet === b} onPress={() => setBet(b)} />)}
         <Chip label="Hepsi" on={false} onPress={() => setBet(Math.floor(balance * 100) / 100)} />
       </View>
-      <Btn kind="gold" label={`Çevir · ${money(bet)}`} disabled={busy || balance < bet || bet <= 0} onPress={go} style={{ alignSelf: 'stretch', marginTop: 16 }} />
+      <Btn kind="gold" hold={bet > balance * 0.25 && bet >= 1} label={`Çevir · ${money(bet)}`} disabled={busy || balance < bet || bet <= 0} onPress={go} style={{ alignSelf: 'stretch', marginTop: 16 }} />
       <Text style={[st.dim, { marginTop: 10, textAlign: 'center' }]}>Kazanırsan bahsin x1.9 ödenir (%5 ev payı). Sanal para.{'\n'}Toplam: {stats.flips} atış, {stats.flipWins} galibiyet.</Text>
     </ScrollView>
   );

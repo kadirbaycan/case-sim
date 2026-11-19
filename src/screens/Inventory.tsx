@@ -80,7 +80,7 @@ export default function Inventory() {
       />
       {sel.size > 0 && (
         <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12, flexDirection: 'row', gap: 8 }}>
-          <Btn style={{ flex: 1 }} kind="gold" label={`${sel.size} sat · ${money(selVal)}`} onPress={() => doSell([...sel])} />
+          <Btn style={{ flex: 1 }} kind="gold" hold={selVal >= 30} label={`${sel.size} sat · ${money(selVal)}`} onPress={() => doSell([...sel])} />
           <Btn kind="ghost" label="İptal" onPress={() => setSel(new Set())} />
         </View>
       )}
@@ -113,7 +113,7 @@ function Detail({ item, onClose, onSell, onUp }: { item: Item | null; onClose: (
         {pr.est ? '~' : ''}{money(pr.p)} {pr.est && <Text style={{ fontSize: 13, color: C.dim }}>(tahmini)</Text>}
       </Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Btn style={{ flex: 1 }} kind="gold" label={`Sat ${money(pr.p * SELL_RATE)}`} onPress={() => onSell(item.uid)} />
+        <Btn style={{ flex: 1 }} kind="gold" hold={pr.p * SELL_RATE >= 30} label={`Sat ${money(pr.p * SELL_RATE)}`} onPress={() => onSell(item.uid)} />
         <Btn style={{ flex: 1 }} kind="blue" label="Upgrade" icon="⚡" onPress={() => onUp(item.uid)} />
       </View>
     </Sheet>
