@@ -172,22 +172,22 @@ export function ItemTile(p: {
   const wear = sk.v ? '' : WEARS[wearIndex(p.item.float)].short;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${sk.n}${sk.ph ? ' ' + sk.ph : ''}, ${wear || 'özel'}${sk.v ? '' : ', float ' + p.item.float.toFixed(3)}, ${p.item.st ? 'StatTrak, ' : ''}${pr.est ? 'tahmini ' : ''}${pr.p.toFixed(2)} dolar`} accessibilityState={{ selected: !!p.selected }} onPress={p.onPress} onLongPress={p.onLongPress} style={{ width: p.w, padding: 3 }}>
-      <View style={{ backgroundColor: T.card, borderRadius: 12, overflow: 'hidden', borderWidth: p.selected ? 2 : 0, borderColor: T.blue }}>
-        <LinearGradient colors={[col + '33', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '70%' }} />
-        <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#000a', paddingHorizontal: 6, borderRadius: 6 }}>
-          <Text style={{ color: T.green, fontWeight: '700', fontSize: 13 }}>{pr.est ? '~' : ''}{money(pr.p)}</Text>
+      <View style={{ backgroundColor: T.card, borderRadius: 16, overflow: 'hidden', borderWidth: p.selected ? 2 : 1, borderColor: p.selected ? T.amber : T.line }}>
+        <LinearGradient colors={[col + '55', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '75%' }} />
+        <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#05080ccc', paddingHorizontal: 6, borderRadius: 8, borderWidth: 1, borderColor: T.line }}>
+          <Text style={{ color: T.green, fontWeight: '700', fontSize: 14 }}>{pr.est ? '~' : ''}{money(pr.p)}</Text>
         </View>
-        {p.selected ? <View style={{ position: 'absolute', zIndex: 3, right: 5, bottom: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={14} color="#000" stroke={3} /></View> : null}
+        {p.selected ? <View style={{ position: 'absolute', zIndex: 3, right: 5, bottom: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: T.amber, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={14} color="#000" stroke={3} /></View> : null}
         {p.item.st && <Text style={{ position: 'absolute', zIndex: 2, right: 5, top: 4, color: '#cf6a32', fontWeight: '700', fontSize: 11 }}>ST™</Text>}
         <Image source={{ uri: sk.img }} style={{ width: '100%', height: p.w * 0.6, marginTop: 16 }} contentFit="contain" />
         <View style={{ paddingHorizontal: 7, paddingBottom: 5 }}>
-          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 14 }}><Text style={{ color: col, fontSize: 12 }}>{TIER_SYM[sk.t]} </Text>{pattern || weapon}{sk.ph ? ` (${sk.ph})` : ''}</Text>
+          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 15, textTransform: 'uppercase', letterSpacing: 0.4 }}><Text style={{ color: col, fontSize: 12 }}>{TIER_SYM[sk.t]} </Text>{pattern || weapon}{sk.ph ? ` (${sk.ph})` : ''}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text numberOfLines={1} style={{ color: T.dim, fontSize: 12, flex: 1 }}>{pattern ? weapon : ''}</Text>
             <Text style={{ color: T.dim, fontSize: 12 }}>{wear}{sk.v ? '' : ' ' + p.item.float.toFixed(3)}</Text>
           </View>
         </View>
-        <View style={{ height: 4, backgroundColor: col }} />
+        <View style={{ height: 5, backgroundColor: col }} />
       </View>
     </Pressable>
   );
@@ -276,6 +276,19 @@ export function EmptyState(p: { icon: IconName; text: string; action?: { label: 
       <Icon name={p.icon} size={48} color={T.dim} />
       <Text style={{ color: T.dim, fontSize: 16, textAlign: 'center', marginTop: 10 }}>{p.text}</Text>
       {p.action ? <Btn small label={p.action.label} onPress={p.action.onPress} style={{ marginTop: 14 }} /> : null}
+    </View>
+  );
+}
+
+// 10 parçalı geri dönüş ölçeği
+export function RtpMeter({ pct, color }: { pct: number; color: string }) {
+  const n = Math.max(0, Math.min(10, Math.round(pct * 10)));
+  return (
+    <View accessible accessibilityLabel={`Tahmini geri dönüş yüzde ${Math.round(pct * 100)}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 2 }}>
+        {Array.from({ length: 10 }, (_, i) => <View key={i} style={{ width: 7, height: 6, borderRadius: 2, backgroundColor: i < n ? color : T.line2 }} />)}
+      </View>
+      <Text style={{ color, fontWeight: '700', fontSize: 13 }}>~%{Math.round(pct * 100)}</Text>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   CASES, CASE_BY_ID, Prices, CaseDef, Item, KEY_PRICE, Rng, SELL_RATE, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
   rollCase, tierWeights, basePrice,
@@ -11,7 +12,8 @@ import { usePrices } from '../store/prices';
 import { useNav } from '../nav';
 import { play, winSfx, haptic } from '../sound';
 import { Reel } from '../components/Reel';
-import { Bar, Btn, Chip, ItemTile, Segmented, Sheet, Text, Toggle, money, st, C } from '../ui';
+import { Bar, Btn, Card, Chip, ItemTile, RtpMeter, Segmented, Sheet, Text, Toggle, money, st, C } from '../ui';
+import Svg, { Defs, LinearGradient as SvgGrad, Polygon, Stop } from 'react-native-svg';
 import { Icon, IconName } from '../icons';
 import { caseRtp, rtpColor, rtpSym } from '../engine/rtp';
 
@@ -25,7 +27,7 @@ export default function Cases() {
 }
 
 // ---------------------------------------------------------------- Liste
-type Filter = 'all' | 'free' | 'cheap' | 'pricey' | 'new' | 'fav';
+type Filter = 'all' | 'free' | 'cheap' | 'pricey' | 'rtp' | 'fav';
 
 function CaseList() {
   const prices = usePrices((x) => x.p);
@@ -51,28 +53,35 @@ function CaseList() {
     if (f === 'fav') a = a.filter((c) => favs.includes(c.id));
     if (f === 'cheap') a = [...a].sort((x, y) => casePrice(x, prices) - casePrice(y, prices));
     if (f === 'pricey') a = [...a].sort((x, y) => casePrice(y, prices) - casePrice(x, prices));
+    if (f === 'rtp') a = [...a].sort((x, y) => caseRtp(y, prices).pct - caseRtp(x, prices).pct);
     return a;
   }, [f, q, freeCases, favs, prices]);
 
-  const cw = (W - GUT * 2) / 3;
+  const cw = (W - GUT * 2 - 10) / 2;
   const header = (
-    <View>
+    <View style={{ paddingHorizontal: GUT }}>
       {unseen && CASE_BY_ID[unseen.caseId] ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Açılmamış sonucu göster" onPress={() => openCase(unseen.caseId)}
-          style={{ marginHorizontal: GUT, marginBottom: 10, backgroundColor: C.card2, borderColor: C.gold, borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 52, justifyContent: 'center' }}>
-          <Text style={{ color: C.gold, fontWeight: '700', fontSize: 16 }}>Görmediğin sonuç var · {CASE_BY_ID[unseen.caseId].name} (gör)</Text>
-        </Pressable>
+        <Card accent={C.gold} onPress={() => openCase(unseen.caseId)} style={{ marginBottom: 10, padding: 12, minHeight: 52, justifyContent: 'center' }}>
+          <Text style={{ color: C.gold, fontWeight: '700', fontSize: 17 }}>Görmediğin sonuç var · {CASE_BY_ID[unseen.caseId].name} (gör)</Text>
+        </Card>
       ) : null}
-      <View style={{ flexDirection: 'row', paddingHorizontal: GUT - 4, marginBottom: 10 }}>
-        <QuickTile icon="box" title="Supply Drop" sub={ready ? 'AL!' : fmtTime(supplyAt - now)} hot={ready}
-          onPress={() => { if (!ready) return say(`Sonraki drop: ${fmtTime(supplyAt - now)}`); claimSupply(); play('coin'); haptic('success'); }} />
-        <QuickTile icon="wheel" title="Günlük Çark" sub={wheelReady ? 'HAZIR!' : 'Yarın'} hot={wheelReady} onPress={() => setTab('store')} />
-        <QuickTile icon="gift" title="Ücretsiz" sub={freeTotal ? `${freeTotal} kasa` : 'yok'} hot={freeTotal > 0} onPress={() => setF('free')} />
+      {ready || wheelReady ? (
+        <Card accent={C.amber + '66'} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, marginBottom: 10, gap: 10 }}>
+          <Icon name={ready ? 'box' : 'wheel'} size={34} color={C.teal} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '800', fontSize: 19, textTransform: 'uppercase', letterSpacing: 0.8 }}>{ready ? 'Supply Drop hazır' : 'Günlük çark hazır'}</Text>
+            <Text style={{ color: C.dim, fontSize: 14 }}>{ready ? 'Bedava kasa ya da para.' : 'Bugünkü ödülü çevir.'}</Text>
+          </View>
+          <Btn small label={ready ? 'Al' : 'Çevir'} onPress={() => { if (ready) { claimSupply(); play('coin'); haptic('success'); } else setTab('store'); }} />
+        </Card>
+      ) : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 12, height: 46, paddingHorizontal: 12, marginBottom: 10 }}>
+        <Icon name="search" size={18} color={C.faint} />
+        <TextInput value={q} onChangeText={setQ} placeholder="Kasa ara…" placeholderTextColor={C.faint} accessibilityLabel="Kasa ara"
+          style={{ flex: 1, color: C.text, fontFamily: C.font, fontSize: 17, padding: 0 }} />
       </View>
-      <TextInput value={q} onChangeText={setQ} placeholder="Kasa ara…" placeholderTextColor={C.dim}
-        style={{ marginHorizontal: GUT, marginBottom: 8, backgroundColor: C.card, color: C.text, borderRadius: 12, paddingHorizontal: 14, height: 42, fontFamily: C.font, fontSize: 16 }} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: GUT, marginBottom: 8, flexGrow: 0 }}>
-        {([['all', 'Hepsi'], ['free', 'Ücretsiz'], ['cheap', 'Ucuz'], ['pricey', 'Pahalı'], ['new', 'Yeni'], ['fav', 'Favori']] as [Filter, string][]).map(([k, l]) => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -GUT, marginBottom: 10, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: GUT }}>
+        {([['all', 'Hepsi'], ['free', 'Ücretsiz'], ['cheap', 'Ucuz'], ['rtp', 'İyi geri dönüş'], ['pricey', 'Pahalı'], ['fav', 'Favori']] as [Filter, string][]).map(([k, l]) => (
           <Chip key={k} label={l} on={f === k} onPress={() => setF(k)} />
         ))}
       </ScrollView>
@@ -81,37 +90,34 @@ function CaseList() {
 
   return (
     <FlatList
-      data={list} numColumns={3} keyExtractor={(c) => c.id} ListHeaderComponent={header}
-      contentContainerStyle={{ paddingHorizontal: GUT - 3, paddingBottom: 20 }}
-      ListEmptyComponent={<Text style={{ color: C.dim, textAlign: 'center', marginTop: 30 }}>Bu filtrede kasa yok.</Text>}
+      data={list} numColumns={2} keyExtractor={(c) => c.id} ListHeaderComponent={header}
+      contentContainerStyle={{ paddingBottom: 20 }} columnWrapperStyle={{ paddingHorizontal: GUT, gap: 10, marginBottom: 10 }}
+      ListEmptyComponent={<Text style={{ color: C.dim, textAlign: 'center', marginTop: 30, fontSize: 16 }}>Bu filtrede kasa yok.</Text>}
       renderItem={({ item: c }) => {
         const free = freeCases[c.id] || 0;
+        const r = caseRtp(c, prices);
+        const rc = rtpColor(r.pct);
         return (
-          <Pressable onPress={() => openCase(c.id)} onLongPress={() => toggleFav(c.id)} style={{ width: cw, padding: 3 }}>
-            <View style={{ backgroundColor: C.card, borderRadius: 14, paddingVertical: 8, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: free ? C.green : '#2b3a4d' }}>
-              {free > 0 && <View style={{ position: 'absolute', top: 6, left: 6, zIndex: 2, backgroundColor: '#000a', borderRadius: 6, paddingHorizontal: 6 }}><Text style={{ color: C.green, fontWeight: '700', fontSize: 13 }}>ÜCRETSİZ ×{free}</Text></View>}
-              {favs.includes(c.id) && <View style={{ position: 'absolute', top: 4, right: 6, zIndex: 2 }}><Icon name="star" size={16} color={C.gold} fill={C.gold} /></View>}
-              <Image source={{ uri: c.img }} style={{ width: cw - 24, height: cw * 0.72, marginTop: free ? 14 : 0 }} contentFit="contain" />
-              <Text numberOfLines={2} style={{ textAlign: 'center', fontWeight: '700', fontSize: 14, minHeight: 34, paddingHorizontal: 4 }}>{c.name}</Text>
-              <Text style={{ color: free ? C.dim : C.green, fontWeight: '700', fontSize: 15 }}>{money(casePrice(c, prices))}</Text>
-              {(() => { const r = caseRtp(c, prices); return <Text accessibilityLabel={`geri dönüş yüzde ${Math.round(r.pct * 100)}`} style={{ color: rtpColor(r.pct), fontWeight: '700', fontSize: 12 }}>{rtpSym(r.pct)} ~%{Math.round(r.pct * 100)}</Text>; })()}
-            </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${c.name}, ${free ? free + ' ücretsiz' : money(casePrice(c, prices))}, tahmini geri dönüş yüzde ${Math.round(r.pct * 100)}`}
+            onPress={() => openCase(c.id)} onLongPress={() => toggleFav(c.id)} style={{ width: cw }}>
+            <Card style={{ padding: 10, paddingBottom: 14 }}>
+              <View style={{ position: 'absolute', left: 8, top: 8, zIndex: 2 }}>
+                {free > 0 ? (
+                  <View style={{ backgroundColor: C.teal, borderRadius: 6, paddingHorizontal: 6 }}><Text style={{ color: '#032421', fontWeight: '800', fontSize: 13, lineHeight: 20, letterSpacing: 0.8 }}>ÜCRETSİZ ×{free}</Text></View>
+                ) : (
+                  <View style={{ backgroundColor: '#05080ccc', borderRadius: 8, paddingHorizontal: 8, borderWidth: 1, borderColor: C.line }}><Text style={{ color: C.green, fontWeight: '700', fontSize: 15, lineHeight: 23 }}>{money(casePrice(c, prices))}</Text></View>
+                )}
+              </View>
+              {favs.includes(c.id) && <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}><Icon name="star" size={18} color={C.gold} fill={C.gold} /></View>}
+              <Image source={{ uri: c.img }} style={{ width: '100%', height: cw * 0.6, marginTop: 20, marginBottom: 6 }} contentFit="contain" />
+              <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.6, lineHeight: 20, minHeight: 40 }}>{c.name}</Text>
+              <RtpMeter pct={r.pct} color={rc} />
+              <View style={{ position: 'absolute', left: 14, right: 14, bottom: 0, height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: free ? C.teal : C.amber }} />
+            </Card>
           </Pressable>
         );
       }}
     />
-  );
-}
-
-function QuickTile(p: { icon: IconName; title: string; sub: string; hot?: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={p.onPress} style={{ flex: 1, margin: 4 }}>
-      <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: p.hot ? C.green : C.line }}>
-        <Icon name={p.icon} size={30} color={p.hot ? C.green : C.text} />
-        <Text style={{ fontWeight: '700', fontSize: 14 }}>{p.title}</Text>
-        <Text style={{ color: p.hot ? C.green : C.dim, fontWeight: '700', fontSize: 14 }}>{p.sub}</Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -288,7 +294,13 @@ function CaseDetail({ id }: { id: string }) {
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: GUT, paddingBottom: 16 }}>
         {/* Sahne */}
-        <View style={{ minHeight: 190, justifyContent: 'center', marginBottom: 6 }}>
+        <View style={{ minHeight: 210, justifyContent: 'center', marginBottom: 6, marginHorizontal: -GUT }}>
+          {!reels ? (
+            <Svg width="100%" height="100%" style={{ position: 'absolute', left: 0, top: 0 }} viewBox="0 0 100 100" preserveAspectRatio="none">
+              <Defs><SvgGrad id="cone" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#ffb02e" stopOpacity="0.28" /><Stop offset="1" stopColor="#ffb02e" stopOpacity="0" /></SvgGrad></Defs>
+              <Polygon points="42,0 58,0 100,100 0,100" fill="url(#cone)" />
+            </Svg>
+          ) : null}
           {reels ? (
             <View style={{ gap: 6 }}>
               {reels.map((r, i) => (
@@ -298,11 +310,11 @@ function CaseDetail({ id }: { id: string }) {
             </View>
           ) : (
             <Animated.View style={{ alignItems: 'center', transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }] }}>
-              <Image source={{ uri: c.img }} style={{ width: 230, height: 170 }} contentFit="contain" />
+              <Image source={{ uri: c.img }} style={{ width: 240, height: 180 }} contentFit="contain" />
             </Animated.View>
           )}
         </View>
-        <Text style={[st.h1, { textAlign: 'center', marginBottom: 10 }]}>{c.name}</Text>
+        <Text accessibilityRole="header" style={{ textAlign: 'center', marginBottom: 6, fontSize: 36, lineHeight: 38, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>{c.name}</Text>
 
         {pending && (
           <Text style={{ textAlign: 'center', color: C.green, marginBottom: 6, fontWeight: '700' }}>
@@ -317,11 +329,6 @@ function CaseDetail({ id }: { id: string }) {
           {opened > 0 ? <Text style={{ color: C.dim, fontSize: 13 }}>Senin açtığın: {opened}</Text> : null}
         </View>
 
-        {pending && (
-          <Text style={{ textAlign: 'center', color: C.green, marginBottom: 6, fontWeight: '700' }}>
-            {pending.map((i) => SKINS[i.skinId].n.split(' | ').pop()).join(' · ') || 'Hepsi otomatik satıldı'}
-          </Text>
-        )}
 
         <Segmented value={tab} onChange={setTab2} items={[{ k: 'items', label: 'İÇERİK' }, { k: 'odds', label: 'OLASILIK' }, { k: 'hist', label: 'GEÇMİŞ' }]} />
         <View style={{ height: 10 }} />
@@ -330,7 +337,7 @@ function CaseDetail({ id }: { id: string }) {
           <View>
         {[1, 2, 3, 4].map((t) => byTier[t] && (
           <View key={t} style={{ marginBottom: 6 }}>
-            <Text style={{ color: TIER_COLOR[t], fontWeight: '700', marginLeft: 4, marginBottom: 2 }}>{TIER_NAME[t]} · %{(weights[t] * 100).toFixed(2)}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: 4, marginBottom: 4, marginTop: 8 }}><Text style={{ color: TIER_COLOR[t], fontWeight: '700', fontSize: 15, letterSpacing: 2, textTransform: 'uppercase' }}>{['', '●', '◆', '▲', '■', '★'][t]} {TIER_NAME[t]}</Text><Text style={{ color: TIER_COLOR[t], fontWeight: '700', fontSize: 15 }}>%{(weights[t] * 100).toFixed(2)}</Text></View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {byTier[t].map((sid) => <ContentTile key={sid} skinId={sid} c={c} w={cw} onPress={() => setInfo(sid)} />)}
             </View>
@@ -502,20 +509,21 @@ function ContentTile({ skinId, c, w, onPress }: { skinId: string; c: CaseDef; w:
   const pr = priceRange(skinId, prices);
   const pct = dropPercent(c, skinId);
   return (
-    <Pressable onPress={onPress} style={{ width: w, padding: 3 }}>
-      <View style={{ backgroundColor: C.card, borderRadius: 12, overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', zIndex: 2, left: 4, top: 4, backgroundColor: '#000a', borderRadius: 6, paddingHorizontal: 5 }}>
-          <Text style={{ color: C.green, fontWeight: '700', fontSize: 12 }}>{pr.est ? '~' : ''}{fmtRange(pr)}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${s.n}, ${TIER_NAME[s.t]}, yüzde ${pct.toFixed(2)}`} onPress={onPress} style={{ width: w, padding: 3 }}>
+      <View style={{ backgroundColor: C.card, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+        <LinearGradient colors={[col + '55', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '75%' }} />
+        <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#05080ccc', borderRadius: 7, paddingHorizontal: 5 }}>
+          <Text style={{ color: C.green, fontWeight: '700', fontSize: 12, lineHeight: 18 }}>{pr.est ? '~' : ''}{fmtRange(pr)}</Text>
         </View>
-        <Image source={{ uri: s.img }} style={{ width: '100%', height: w * 0.62, marginTop: 14 }} contentFit="contain" />
-        <View style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
-          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 13 }}>{pattern || weapon}</Text>
+        <Image source={{ uri: s.img }} style={{ width: '100%', height: w * 0.6, marginTop: 18 }} contentFit="contain" />
+        <View style={{ paddingHorizontal: 7, paddingBottom: 6 }}>
+          <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.3 }}>{pattern || weapon}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontWeight: '700', fontSize: 12 }}>{pct >= 10 ? pct.toFixed(1) : pct.toFixed(2)}%</Text>
-            <Text numberOfLines={1} style={{ color: C.dim, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{pattern ? weapon : ''}</Text>
+            <Text numberOfLines={1} style={{ color: C.dim, fontSize: 12, flexShrink: 1 }}>{pattern ? weapon : ''}</Text>
+            <Text style={{ color: C.dim, fontWeight: '700', fontSize: 12, marginLeft: 4 }}>{pct >= 10 ? pct.toFixed(1) : pct.toFixed(2)}%</Text>
           </View>
         </View>
-        <View style={{ height: 4, backgroundColor: col }} />
+        <View style={{ height: 5, backgroundColor: col }} />
       </View>
     </Pressable>
   );
