@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Tab = 'depo' | 'cases' | 'inv' | 'contracts' | 'games' | 'store';
+export type Tab = 'cases' | 'inv' | 'contracts' | 'games' | 'store';
 type N = {
   tab: Tab;
   caseId: string | null; // Kasalar sekmesi detay
@@ -18,7 +18,7 @@ type N = {
 };
 
 export const useNav = create<N>((set, get) => ({
-  tab: 'depo', caseId: null, games: null, contracts: 'daily', profile: false, upgraderUid: null,
+  tab: 'cases', caseId: null, games: null, contracts: 'daily', profile: false, upgraderUid: null,
   setTab: (tab) => set({ tab }),
   openCase: (caseId) => set({ caseId, tab: 'cases' }),
   openGame: (games) => set({ games, tab: 'games' }),
@@ -30,7 +30,7 @@ export const useNav = create<N>((set, get) => ({
     if (n.profile) { set({ profile: false }); return true; }
     if (n.tab === 'cases' && n.caseId) { set({ caseId: null }); return true; }
     if (n.tab === 'games' && n.games) { set({ games: null }); return true; }
-    if (n.tab !== 'depo') { set({ tab: 'depo' }); return true; }
+    if (n.tab !== 'cases') { set({ tab: 'cases' }); return true; }
     return false;
   },
 }));

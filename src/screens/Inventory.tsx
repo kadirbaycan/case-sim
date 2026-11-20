@@ -43,7 +43,7 @@ export default function Inventory() {
     Alert.alert(`${ids.length} eşya satılsın mı?`, `$${max} altındakiler satılır (Covert+ hariç).`, [{ text: 'Vazgeç' }, { text: 'Sat', onPress: () => doSell(ids) }]);
   };
 
-  const w = (W - 12) / cols;
+  const w = (W - 18) / cols;
   return (
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 12 }}>
@@ -65,7 +65,7 @@ export default function Inventory() {
         <Text style={[st.dim, { textAlign: 'center', marginBottom: 4 }]}>Sanal değer — gerçek paraya çevrilemez. Çoklu seçim için uzun bas.</Text>
       </View>
       <FlatList
-        key={cols} data={data} numColumns={cols} keyExtractor={(i) => i.uid} contentContainerStyle={{ paddingHorizontal: 3, paddingBottom: 90 }}
+        key={cols} data={data} numColumns={cols} keyExtractor={(i) => i.uid} contentContainerStyle={{ paddingHorizontal: 9, paddingBottom: 90 }}
         initialNumToRender={12} windowSize={7}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 50 }}>

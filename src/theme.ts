@@ -1,26 +1,26 @@
 export const T = {
-  bg: '#0a0d12',
-  card: '#151b25',
-  card2: '#1c2432',
-  line: '#2a3447',
-  line2: '#37425a',
-  text: '#e9eef6',
-  dim: '#8c98ad',
-  faint: '#5c687d',
-  green: '#2dd4bf', // para / kazanç (turkuaz)
-  teal: '#2dd4bf',
-  tealDim: '#134e48',
-  amber: '#ffb02e', // birincil eylem
-  amber2: '#e8901a',
-  amberInk: '#1b1202',
-  gold: '#ffc83d', // nadir
-  red: '#ff5a5f',
-  blue: '#4b8dff',
-  btnTop: '#ffc04f',
-  btnBot: '#e8901a',
-  font: 'Barlow_500Medium',
-  fontBold: 'BarlowCondensed_700Bold',
-  fontXL: 'BarlowCondensed_800ExtraBold',
+  bg: '#0e1015',
+  card: '#171a21',
+  card2: '#20242d',
+  line: '#2a2f3a',
+  line2: '#363c4a',
+  text: '#eef1f6',
+  dim: '#8a93a3',
+  faint: '#5d6676',
+  green: '#58d36b', // para / kazanç
+  teal: '#58d36b',
+  tealDim: '#25562c',
+  amber: '#58d36b', // birincil eylem (eski ad; yeşil)
+  amber2: '#4f7a2a',
+  amberInk: '#0d1a07',
+  gold: '#f2c14e', // nadir / vurgu
+  red: '#ef5350',
+  blue: '#5aa9ff',
+  btnTop: '#6c9a3c',
+  btnBot: '#4f7a2a',
+  font: 'Rajdhani_600SemiBold',
+  fontBold: 'Rajdhani_700Bold',
+  fontXL: 'Rajdhani_700Bold',
 };
 export const S = { gutter: 14, r: 18 };
 

@@ -3,7 +3,7 @@ import {
   Animated, Modal, Pressable, StyleProp, StyleSheet, Text as RNText, TextProps, TextStyle, View, ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Item, Prices, SKINS, TIER_COLOR, WEARS, itemName, itemPrice, wearIndex } from './engine/game';
 import { T, TIER_SYM } from './theme';
@@ -26,55 +26,37 @@ export function Text({ style, ...p }: TextProps) {
 type BtnKind = 'primary' | 'gold' | 'ghost' | 'danger' | 'blue';
 // [üst, alt, yazı, derinlik]
 const KIND: Record<BtnKind, [string, string, string, string]> = {
-  primary: [T.btnTop, T.btnBot, T.amberInk, '#8a4f00'],
-  gold: [T.btnTop, T.btnBot, T.amberInk, '#8a4f00'],
-  ghost: [T.card2, T.card2, T.text, '#05070a'],
-  danger: ['#ff6b70', '#cf3f45', '#fff', '#7a1d21'],
-  blue: ['#5a98ff', '#3a6fd0', '#fff', '#1c3a73'],
+  primary: ['#6c9a3c', '#4f7a2a', '#eaf7d8', '#00000066'],
+  gold: ['#f6cf63', '#d19a22', '#1b1405', '#00000055'],
+  ghost: [T.card2, T.card2, T.text, '#00000066'],
+  danger: ['#d9534f', '#a63a37', '#fff', '#00000066'],
+  blue: ['#4d8fe0', '#3a6db0', '#fff', '#00000066'],
 };
 
-// Tehlike şeridi (birincil düğmenin altı)
-function Hazard() {
-  return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 5 }}>
-      <Svg width="100%" height={5}>
-        <Defs>
-          <Pattern id="hz" patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(45)">
-            <Rect width={6} height={12} fill="#00000033" />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height={5} fill="url(#hz)" />
-      </Svg>
-    </View>
-  );
-}
-
-// Seviye halkası + avatar
+// Avatar + seviye halkası (referans: yuvarlak avatar, altta eğik "SV" rozeti)
 export function LevelRing({ level, p, size = 46, onPress }: { level: number; p: number; size?: number; onPress?: () => void }) {
   const r = (size - 6) / 2, c = 2 * Math.PI * r;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Profil, seviye ${level}`} onPress={onPress} style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={T.line} strokeWidth={3.5} fill="none" />
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={T.amber} strokeWidth={3.5} fill="none" strokeLinecap="round"
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={T.line} strokeWidth={3} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={T.green} strokeWidth={3} fill="none" strokeLinecap="round"
           strokeDasharray={`${c * Math.max(0.02, Math.min(1, p))} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </Svg>
       <View style={{ position: 'absolute', left: 5, top: 5, right: 5, bottom: 5, borderRadius: size, backgroundColor: T.card2, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="user" size={size * 0.46} color={T.amber} />
+        <Icon name="user" size={size * 0.46} color={T.dim} />
       </View>
-      <View style={{ position: 'absolute', right: -5, bottom: -4, backgroundColor: T.amber, borderRadius: 6, paddingHorizontal: 5, borderWidth: 2, borderColor: T.bg }}>
-        <Text style={{ color: T.amberInk, fontWeight: '800', fontSize: 12, lineHeight: 15 }}>{level}</Text>
+      <View style={{ position: 'absolute', left: size * 0.12, right: size * 0.12, bottom: -5, backgroundColor: T.green, borderRadius: 4, alignItems: 'center', transform: [{ skewX: '-12deg' }] }}>
+        <Text style={{ color: T.amberInk, fontWeight: '700', fontSize: 11, lineHeight: 14 }}>SV. {level}</Text>
       </View>
     </Pressable>
   );
 }
 
-// Yükselen yüzey: üst ışık çizgisi + yumuşak gölge
+// Düz yüzey: ince çerçeve, gradyan/parlama yok
 export function Card({ children, style, onPress, accent }: { children?: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; accent?: string }) {
   const body = (
-    <View style={[{ borderRadius: 18, borderWidth: 1, borderColor: accent || T.line, overflow: 'hidden', backgroundColor: T.card, elevation: 3 }, style]}>
-      <LinearGradient colors={[T.card2, T.card]} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} />
-      <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 1, backgroundColor: '#ffffff12' }} />
+    <View style={[{ borderRadius: 14, borderWidth: 1, borderColor: accent || T.line, overflow: 'hidden', backgroundColor: T.card }, style]}>
       {children}
     </View>
   );
@@ -116,14 +98,13 @@ export function Btn(p: {
       onPressOut={p.hold ? cancel : undefined}
       disabled={p.disabled}
       style={({ pressed }) => [{ opacity: p.disabled ? 0.4 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, p.style]}>
-      <LinearGradient colors={[a, b]} style={{ borderRadius: 12, minHeight: p.small ? 44 : 56, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderBottomWidth: 4, borderBottomColor: depth, overflow: 'hidden', borderWidth: kind === 'ghost' ? 1 : 0, borderColor: T.line2 }}>
-        {kind === 'primary' || kind === 'gold' ? <Hazard /> : null}
+      <LinearGradient colors={[a, b]} style={{ borderRadius: 12, minHeight: p.small ? 44 : 54, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', borderBottomWidth: 3, borderBottomColor: depth, overflow: 'hidden', borderWidth: kind === 'ghost' ? 1 : 0, borderColor: T.line2 }}>
         {p.hold ? (
           <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ffffff40', width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }} />
         ) : null}
         {p.icon ? <View style={{ marginRight: 8 }}><Icon name={p.icon} size={p.small ? 16 : 20} color={fg} /></View> : null}
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: fg, fontWeight: '800', fontSize: p.small ? 15 : 21, letterSpacing: 1.6, textTransform: 'uppercase' }}>{label}</Text>
+          <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 16 : 19, letterSpacing: 1.2, textTransform: 'uppercase' }}>{label}</Text>
           {p.sub ? <Text style={{ color: fg, fontSize: 11, opacity: 0.8 }}>{p.sub}</Text> : null}
         </View>
       </LinearGradient>
@@ -133,9 +114,9 @@ export function Btn(p: {
 
 export function Chip(p: { label: string; on?: boolean; onPress: () => void; icon?: IconName; dot?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: !!p.on }} hitSlop={{ top: 4, bottom: 4 }} onPress={p.onPress} style={{ backgroundColor: p.on ? T.card2 : T.card, borderRadius: 10, paddingHorizontal: 14, height: 38, justifyContent: 'center', marginRight: 6, borderWidth: 1, borderColor: p.on ? T.amber : T.line }}>
-      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 15, letterSpacing: 1, textTransform: 'uppercase' }}>{p.on ? '✓ ' : ''}{p.label}</Text>
-      {p.dot ? <View style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: T.green }} /> : null}
+    <Pressable accessibilityRole="button" accessibilityLabel={p.label} accessibilityState={{ selected: !!p.on }} hitSlop={{ top: 4, bottom: 4 }} onPress={p.onPress} style={{ backgroundColor: p.on ? '#2f3b52' : T.card, borderRadius: 18, paddingHorizontal: 14, height: 36, justifyContent: 'center', marginRight: 6, borderWidth: 1, borderColor: p.on ? T.blue : T.line }}>
+      <Text style={{ color: p.on ? '#fff' : T.dim, fontWeight: '700', fontSize: 15, letterSpacing: 0.5 }}>{p.label}</Text>
+      {p.dot ? <View style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: 4, backgroundColor: T.green }} /> : null}
     </Pressable>
   );
 }
@@ -143,7 +124,7 @@ export function Chip(p: { label: string; on?: boolean; onPress: () => void; icon
 export function Bar(p: { v: number; color?: string; h?: number; style?: StyleProp<ViewStyle> }) {
   return (
     <View style={[{ height: p.h ?? 8, borderRadius: 6, backgroundColor: T.card2, overflow: 'hidden' }, p.style]}>
-      <View style={{ height: '100%', width: `${Math.max(0, Math.min(1, p.v)) * 100}%`, backgroundColor: p.color || T.amber, borderRadius: 6 }} />
+      <View style={{ height: '100%', width: `${Math.max(0, Math.min(1, p.v)) * 100}%`, backgroundColor: p.color || T.green, borderRadius: 6 }} />
     </View>
   );
 }
@@ -152,7 +133,7 @@ export function Sheet(p: { visible: boolean; onClose: () => void; children: Reac
   return (
     <Modal visible={p.visible} transparent animationType="slide" onRequestClose={p.onClose} statusBarTranslucent>
       <Pressable accessibilityLabel="Kapat" style={{ flex: 1, backgroundColor: '#000b', justifyContent: 'flex-end' }} onPress={p.onClose}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: T.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 14, maxHeight: p.full ? '94%' : '86%', borderTopWidth: 1, borderColor: T.line }}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: T.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 14, maxHeight: p.full ? '94%' : '86%', borderTopWidth: 1, borderColor: T.line }}>
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: T.line, marginBottom: 10 }} />
           {p.children}
         </Pressable>
@@ -172,8 +153,8 @@ export function ItemTile(p: {
   const wear = sk.v ? '' : WEARS[wearIndex(p.item.float)].short;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${sk.n}${sk.ph ? ' ' + sk.ph : ''}, ${wear || 'özel'}${sk.v ? '' : ', float ' + p.item.float.toFixed(3)}, ${p.item.st ? 'StatTrak, ' : ''}${pr.est ? 'tahmini ' : ''}${pr.p.toFixed(2)} dolar`} accessibilityState={{ selected: !!p.selected }} onPress={p.onPress} onLongPress={p.onLongPress} style={{ width: p.w, padding: 3 }}>
-      <View style={{ backgroundColor: T.card, borderRadius: 16, overflow: 'hidden', borderWidth: p.selected ? 2 : 1, borderColor: p.selected ? T.amber : T.line }}>
-        <LinearGradient colors={[col + '55', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '75%' }} />
+      <View style={{ backgroundColor: T.card, borderRadius: 12, overflow: 'hidden', borderWidth: p.selected ? 2 : 1, borderColor: p.selected ? T.amber : T.line }}>
+        <LinearGradient colors={[col + '40', 'transparent']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '75%' }} />
         <View style={{ position: 'absolute', zIndex: 2, left: 5, top: 5, backgroundColor: '#05080ccc', paddingHorizontal: 6, borderRadius: 8, borderWidth: 1, borderColor: T.line }}>
           <Text style={{ color: T.green, fontWeight: '700', fontSize: 14 }}>{pr.est ? '~' : ''}{money(pr.p)}</Text>
         </View>
@@ -241,7 +222,7 @@ export function Segmented<K extends string>(p: { items: { k: K; label: string }[
         const on = i.k === p.value;
         return (
           <Pressable key={i.k} accessibilityRole="tab" accessibilityLabel={i.label} accessibilityState={{ selected: on }} onPress={() => p.onChange(i.k)}
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: on ? T.card2 : 'transparent', borderBottomWidth: on ? 2 : 0, borderBottomColor: T.gold }}>
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: on ? T.card2 : 'transparent', borderBottomWidth: on ? 2 : 0, borderBottomColor: T.green }}>
             <Text style={{ fontWeight: '700', fontSize: 15, color: on ? T.text : T.dim, letterSpacing: 0.5 }}>{i.label}</Text>
           </Pressable>
         );

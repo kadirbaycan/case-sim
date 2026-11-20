@@ -22,5 +22,5 @@ export function caseRtp(c: CaseDef, prices: Prices): Rtp {
   cache.set(c.id, { pr: prices, v });
   return v;
 }
-export const rtpColor = (pct: number) => (pct >= 0.6 ? T.green : pct >= 0.4 ? T.amber : T.red);
+export const rtpColor = (pct: number) => (pct >= 0.6 ? T.green : pct >= 0.4 ? T.gold : T.red);
 export const rtpSym = (pct: number) => (pct >= 0.6 ? '▲' : pct >= 0.4 ? '■' : '▼');

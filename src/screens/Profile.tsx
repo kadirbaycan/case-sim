@@ -39,7 +39,7 @@ export default function Profile() {
         <Row l="Açılan kasa" v={String(st_.opened)} />
         <Row l="Altın (★) çıkan" v={String(st_.gold)} />
         <Row l="En değerli drop" v={st_.bestName ? `${st_.bestName} (${money(st_.best)})` : '-'} />
-        <Row l="Upgrader" v={`${st_.upWins}K / ${st_.upLoss}Y`} />
+        <Row l="Upgrader" v={`${st_.upWins} kazanç · ${st_.upLoss} kayıp`} />
         <Row l="Takas / Coinflip" v={`${st_.trades} / ${st_.flipWins}-${st_.flips - st_.flipWins}`} last />
       </View>
 
