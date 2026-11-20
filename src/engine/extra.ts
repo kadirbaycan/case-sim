@@ -113,3 +113,6 @@ export const fmtTime = (ms: number) => {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h > 0 ? `${h}s ${m}dk` : `${m}dk ${String(sec).padStart(2, '0')}sn`;
 };
+
+export const rankTitle = (lv: number) =>
+  lv >= 95 ? 'Efsane' : lv >= 70 ? 'Depo Şefi' : lv >= 45 ? 'Vardiya Amiri' : lv >= 25 ? 'Usta' : lv >= 10 ? 'Kalfa' : 'Depo Çırağı';

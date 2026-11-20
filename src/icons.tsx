@@ -6,6 +6,8 @@ const circ = (cx: number, cy: number, r: number) =>
   `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
 
 const P = {
+  depo: ['M3 10l9-6 9 6v10H3z', 'M9 20v-6h6v6'],
+  bench: ['M14 6l4 4-9 9H5v-4z', 'M13 7l4 4'],
   box: ['M3 8l9-5 9 5v8l-9 5-9-5z', 'M3 8l9 5 9-5', 'M12 13v8'],
   bag: ['M5 8h14l-1 12H6z', 'M9 8V6a3 3 0 0 1 6 0v2'],
   swap: ['M4 8h13', 'M13 4l4 4-4 4', 'M20 16H7', 'M11 12l-4 4 4 4'],

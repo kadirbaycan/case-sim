@@ -13,6 +13,7 @@ import { play, winSfx, haptic } from '../sound';
 import { Reel } from '../components/Reel';
 import { Bar, Btn, Chip, ItemTile, Segmented, Sheet, Text, Toggle, money, st, C } from '../ui';
 import { Icon, IconName } from '../icons';
+import { caseRtp, rtpColor, rtpSym } from '../engine/rtp';
 
 const W = Dimensions.get('window').width;
 const GUT = 12;
@@ -113,28 +114,6 @@ function QuickTile(p: { icon: IconName; title: string; sub: string; hot?: boolea
     </Pressable>
   );
 }
-
-// Tahmini geri dönüş (RTP): beklenen eşya değeri × satış oranı / (kasa + anahtar)
-type Rtp = { ev: number; cost: number; pct: number };
-const rtpCache = new Map<string, { pr: any; v: Rtp }>();
-function caseRtp(c: CaseDef, prices: Prices): Rtp {
-  const hit = rtpCache.get(c.id);
-  if (hit && hit.pr === prices) return hit.v;
-  const w = tierWeights(c);
-  const mid = (sid: string) => { const r = priceRange(sid, prices); return (r.lo + r.hi) / 2; };
-  let ev = 0;
-  for (let t = 1; t <= 5; t++) {
-    const ids = t === 5 ? c.rare : c.items.filter((s) => SKINS[s].t === t);
-    if (!ids.length || !w[t]) continue;
-    ev += w[t] * (ids.reduce((a, s) => a + mid(s), 0) / ids.length);
-  }
-  const cost = casePrice(c, prices);
-  const v = { ev, cost, pct: (ev * SELL_RATE) / cost };
-  rtpCache.set(c.id, { pr: prices, v });
-  return v;
-}
-const rtpColor = (pct: number) => (pct >= 0.6 ? C.green : pct >= 0.4 ? C.gold : C.red);
-const rtpSym = (pct: number) => (pct >= 0.6 ? '▲' : pct >= 0.4 ? '■' : '▼');
 
 // ---------------------------------------------------------------- Detay
 type ReelDef = { ids: string[]; win: number };
