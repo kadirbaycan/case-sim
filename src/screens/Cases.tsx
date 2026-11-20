@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, FlatList, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import {
-  CASES, CASE_BY_ID, CaseDef, Item, KEY_PRICE, Rng, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
+  CASES, CASE_BY_ID, Prices, CaseDef, Item, KEY_PRICE, Rng, SELL_RATE, SKINS, TIER_COLOR, TIER_NAME, WEARS, casePrice, itemPrice, marketName,
   rollCase, tierWeights, basePrice,
 } from '../engine/game';
 import { dropPercent, fmtRange, fmtTime, priceRange } from '../engine/extra';
@@ -11,7 +11,7 @@ import { usePrices } from '../store/prices';
 import { useNav } from '../nav';
 import { play, winSfx, haptic } from '../sound';
 import { Reel } from '../components/Reel';
-import { Bar, Btn, Chip, ItemTile, Sheet, Text, Toggle, money, st, C } from '../ui';
+import { Bar, Btn, Chip, ItemTile, Segmented, Sheet, Text, Toggle, money, st, C } from '../ui';
 import { Icon, IconName } from '../icons';
 
 const W = Dimensions.get('window').width;
@@ -93,6 +93,7 @@ function CaseList() {
               <Image source={{ uri: c.img }} style={{ width: cw - 24, height: cw * 0.72, marginTop: free ? 14 : 0 }} contentFit="contain" />
               <Text numberOfLines={2} style={{ textAlign: 'center', fontWeight: '700', fontSize: 14, minHeight: 34, paddingHorizontal: 4 }}>{c.name}</Text>
               <Text style={{ color: free ? C.dim : C.green, fontWeight: '700', fontSize: 15 }}>{money(casePrice(c, prices))}</Text>
+              {(() => { const r = caseRtp(c, prices); return <Text accessibilityLabel={`geri dönüş yüzde ${Math.round(r.pct * 100)}`} style={{ color: rtpColor(r.pct), fontWeight: '700', fontSize: 12 }}>{rtpSym(r.pct)} ~%{Math.round(r.pct * 100)}</Text>; })()}
             </View>
           </Pressable>
         );
@@ -112,6 +113,28 @@ function QuickTile(p: { icon: IconName; title: string; sub: string; hot?: boolea
     </Pressable>
   );
 }
+
+// Tahmini geri dönüş (RTP): beklenen eşya değeri × satış oranı / (kasa + anahtar)
+type Rtp = { ev: number; cost: number; pct: number };
+const rtpCache = new Map<string, { pr: any; v: Rtp }>();
+function caseRtp(c: CaseDef, prices: Prices): Rtp {
+  const hit = rtpCache.get(c.id);
+  if (hit && hit.pr === prices) return hit.v;
+  const w = tierWeights(c);
+  const mid = (sid: string) => { const r = priceRange(sid, prices); return (r.lo + r.hi) / 2; };
+  let ev = 0;
+  for (let t = 1; t <= 5; t++) {
+    const ids = t === 5 ? c.rare : c.items.filter((s) => SKINS[s].t === t);
+    if (!ids.length || !w[t]) continue;
+    ev += w[t] * (ids.reduce((a, s) => a + mid(s), 0) / ids.length);
+  }
+  const cost = casePrice(c, prices);
+  const v = { ev, cost, pct: (ev * SELL_RATE) / cost };
+  rtpCache.set(c.id, { pr: prices, v });
+  return v;
+}
+const rtpColor = (pct: number) => (pct >= 0.6 ? C.green : pct >= 0.4 ? C.gold : C.red);
+const rtpSym = (pct: number) => (pct >= 0.6 ? '▲' : pct >= 0.4 ? '■' : '▼');
 
 // ---------------------------------------------------------------- Detay
 type ReelDef = { ids: string[]; win: number };
@@ -139,6 +162,11 @@ function CaseDetail({ id }: { id: string }) {
   const [info, setInfo] = useState<string | null>(null);
   const [rare, setRare] = useState(false);
   const [asOpen, setAsOpen] = useState(false);
+  const [tab, setTab2] = useState<'items' | 'odds' | 'hist'>('items');
+  const [need, setNeed] = useState(false);
+  const openCaseNav = useNav((n) => n.openCase);
+  const setTabNav = useNav((n) => n.setTab);
+  const openGameNav = useNav((n) => n.openGame);
   const [load, setLoad] = useState<{ n: number; t: number } | null>(loaded.has(id) ? null : { n: 0, t: 1 });
   const doneCount = useRef(0);
   const infoRef = useRef<{ items: Item[]; free: number; n: number } | null>(null);
@@ -237,7 +265,7 @@ function CaseDetail({ id }: { id: string }) {
   function go() {
     if (busy) return;
     const r = open(id, count, prices);
-    if (!r) { say(`Eksik ${money(Math.max(0, costFor(count) - g.balance))} · envanterden eşya sat`); return; }
+    if (!r) { setNeed(true); return; }
     setPending(null);
     setBusy(true);
     const quick = g.quick || count > maxMulti;
@@ -273,9 +301,13 @@ function CaseDetail({ id }: { id: string }) {
   const selVal = sheetItems.filter((i) => selSheet.has(i.uid)).reduce((a, i) => a + itemPrice(i, prices).p * 0.9, 0);
   const cw = (W - GUT * 2 - 12) / 3;
 
+  const rtp = useMemo(() => caseRtp(c, prices), [c, prices]);
+  const shortage = Math.max(0, costFor(count) - g.balance);
+  const opened = g.perCase[id] || 0;
+
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: GUT, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: GUT, paddingBottom: 16 }}>
         {/* Sahne */}
         <View style={{ minHeight: 190, justifyContent: 'center', marginBottom: 6 }}>
           {reels ? (
@@ -299,38 +331,24 @@ function CaseDetail({ id }: { id: string }) {
           </Text>
         )}
 
-        <Btn label={busy ? 'Açılıyor…' : count > 1 ? `${count} Kasa Aç` : 'Kilidi Aç'} icon={busy ? undefined : 'unlock'} disabled={busy || !canOpen} onPress={go}
-          sub={undefined} />
-        <Text style={{ textAlign: 'center', color: C.dim, marginVertical: 6, fontSize: 15 }}>
-          {freeHave >= count ? `Ücretsiz kasa kullanılacak (kalan ${freeHave})` : `Anahtar + Kasa: ${money(costFor(count))}${freeHave ? ` (${Math.min(freeHave, count)} ücretsiz)` : ''}`}
-          {!canOpen ? '  ·  Yetersiz bakiye' : ''}
-        </Text>
-
-        {/* Ayarlar */}
-        <View style={[st.card, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 10 }]}>
-          <Toggle label="Oto-Çevir" on={g.autoSpin} onPress={() => setOpt('autoSpin', !g.autoSpin)} />
-          <Toggle label="Oto-Sat" note={g.autoSell.on ? `<${money(g.autoSell.max)} satılır` : undefined} on={g.autoSell.on} onPress={() => setAutoSell(!g.autoSell.on)} onGear={() => setAsOpen(true)} />
-          <Toggle label="Hızlı" on={g.quick} onPress={() => setOpt('quick', !g.quick)} />
+        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+          <View accessible accessibilityLabel={`Tahmini geri dönüş yüzde ${Math.round(rtp.pct * 100)}`} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: rtpColor(rtp.pct) + '2a', borderRadius: 8, paddingHorizontal: 8, height: 28 }}>
+            <Text style={{ color: rtpColor(rtp.pct), fontWeight: '700', fontSize: 14 }}>{rtpSym(rtp.pct)} Geri dönüş ~%{Math.round(rtp.pct * 100)}</Text>
+          </View>
+          {opened > 0 ? <Text style={{ color: C.dim, fontSize: 13 }}>Senin açtığın: {opened}</Text> : null}
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-          <Text style={{ color: C.dim, fontWeight: '700', marginRight: 8 }}>AÇ:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {counts.map((n) => {
-              const ok = g.balance >= costFor(n) - 1e-9;
-              const on = n === count;
-              return (
-                <Pressable key={n} disabled={busy || !ok} onPress={() => setCount(n)} style={{ width: 46, height: 44, marginRight: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? '#4f7a2a' : C.card2, opacity: ok ? 1 : 0.35 }}>
-                  <Text style={{ fontWeight: '700', fontSize: 18 }}>{n}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-        {!g.massOpen && <Text style={[st.dim, { marginTop: -6, marginBottom: 10 }]}>Mağazadan "Toplu Açma" alırsan 10/25/50 kasa aynı anda açabilirsin.</Text>}
+        {pending && (
+          <Text style={{ textAlign: 'center', color: C.green, marginBottom: 6, fontWeight: '700' }}>
+            {pending.map((i) => SKINS[i.skinId].n.split(' | ').pop()).join(' · ') || 'Hepsi otomatik satıldı'}
+          </Text>
+        )}
 
-        {/* İçerik */}
-        <Text style={[st.h2, { marginBottom: 8 }]}>Kasa İçeriği</Text>
+        <Segmented value={tab} onChange={setTab2} items={[{ k: 'items', label: 'İÇERİK' }, { k: 'odds', label: 'OLASILIK' }, { k: 'hist', label: 'GEÇMİŞ' }]} />
+        <View style={{ height: 10 }} />
+
+        {tab === 'items' && (
+          <View>
         {[1, 2, 3, 4].map((t) => byTier[t] && (
           <View key={t} style={{ marginBottom: 6 }}>
             <Text style={{ color: TIER_COLOR[t], fontWeight: '700', marginLeft: 4, marginBottom: 2 }}>{TIER_NAME[t]} · %{(weights[t] * 100).toFixed(2)}</Text>
@@ -351,8 +369,70 @@ function CaseDetail({ id }: { id: string }) {
             </View>
           </Pressable>
         ) : null}
-        <Text style={[st.dim, { textAlign: 'center', marginTop: 14 }]}>Sanal değer: gerçek paraya çevrilemez. Adil-oyun sayacı: {g.seeds.nonce}</Text>
+            {!g.massOpen && <Text style={[st.dim, { marginTop: 8 }]}>Mağazadan "Toplu Açma" alırsan 10/25/50 kasa aynı anda açabilirsin.</Text>}
+          </View>
+        )}
+
+        {tab === 'odds' && (
+          <View>
+            <View style={{ flexDirection: 'row', height: 22, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+              {[1, 2, 3, 4, 5].map((t) => (weights[t] ? <View key={t} style={{ flex: weights[t], backgroundColor: TIER_COLOR[t] }} /> : null))}
+            </View>
+            {[1, 2, 3, 4, 5].map((t) => (weights[t] ? (
+              <View key={t} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line }}>
+                <Text style={{ color: TIER_COLOR[t], width: 22, fontWeight: '700' }}>{['', '●', '◆', '▲', '■', '★'][t]}</Text>
+                <Text style={{ flex: 1, fontSize: 16 }}>{TIER_NAME[t]}</Text>
+                <Text style={{ fontWeight: '700', fontSize: 16 }}>%{(weights[t] * 100).toFixed(2)}</Text>
+              </View>
+            ) : null))}
+            <View style={[st.card, { marginTop: 12 }]}>
+              <Text style={{ fontSize: 15 }}>Beklenen eşya değeri: <Text style={{ fontWeight: '700' }}>{money(rtp.ev)}</Text></Text>
+              <Text style={{ fontSize: 15 }}>Kasa + anahtar: <Text style={{ fontWeight: '700' }}>{money(rtp.cost)}</Text></Text>
+              <Text style={{ fontSize: 15, marginTop: 4, color: rtpColor(rtp.pct), fontWeight: '700' }}>Uzun vadede açılış maliyetinin yaklaşık %{Math.round(rtp.pct * 100)}'i geri döner.</Text>
+              <Text style={[st.dim, { marginTop: 4 }]}>Satış komisyonu (%10) dahil, ortalama aşınma varsayımıyla hesaplanır. Tek açılış çok farklı çıkabilir.</Text>
+            </View>
+          </View>
+        )}
+
+        {tab === 'hist' && (
+          <View style={st.card}>
+            <Text style={{ fontSize: 16 }}>Bu kasadan açtığın: <Text style={{ fontWeight: '700' }}>{opened}</Text></Text>
+            <Text style={{ fontSize: 16, marginTop: 4 }}>Tahmini harcama: <Text style={{ fontWeight: '700' }}>{money(opened * rtp.cost)}</Text></Text>
+            <Text style={[st.dim, { marginTop: 8 }]}>Adil-oyun sayacı: {g.seeds.nonce}. Sonuçlar kayıtlı tohumlardan üretilir ve Profil'den doğrulanabilir.</Text>
+          </View>
+        )}
+        <Text style={[st.dim, { textAlign: 'center', marginTop: 14 }]}>Sanal değer: gerçek paraya çevrilemez.</Text>
       </ScrollView>
+
+      {/* Yapışkan eylem çubuğu */}
+      <View style={{ backgroundColor: C.card, borderTopWidth: 1, borderColor: C.line, paddingHorizontal: GUT, paddingTop: 8, paddingBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', marginBottom: 8 }}>
+          <Toggle label="Oto-Çevir" on={g.autoSpin} onPress={() => setOpt('autoSpin', !g.autoSpin)} />
+          <Toggle label="Oto-Sat" note={g.autoSell.on ? `<${money(g.autoSell.max)} satılır` : undefined} on={g.autoSell.on} onPress={() => setAutoSell(!g.autoSell.on)} onGear={() => setAsOpen(true)} />
+          <Toggle label="Hızlı" on={g.quick} onPress={() => setOpt('quick', !g.quick)} />
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ color: C.dim, fontWeight: '700', marginRight: 8 }}>ADET</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {counts.map((n) => {
+              const ok = g.balance >= costFor(n) - 1e-9;
+              const on = n === count;
+              return (
+                <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} kasa`} accessibilityState={{ selected: on, disabled: busy }} disabled={busy} onPress={() => setCount(n)}
+                  style={{ width: 46, height: 44, marginRight: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? '#4f7a2a' : C.card2, opacity: ok ? 1 : 0.5, borderWidth: on ? 0 : 1, borderColor: C.line }}>
+                  <Text style={{ fontWeight: '700', fontSize: 18 }}>{n}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        {count > maxMulti ? <Text style={[st.dim, { marginBottom: 4 }]}>Toplu açma hızlı modda çalışır.</Text> : null}
+        <Btn label={busy ? 'Açılıyor…' : count > 1 ? `${count} Kasa Aç` : 'Kilidi Aç'} icon={busy ? undefined : 'unlock'} disabled={busy} onPress={go} />
+        <Text style={{ textAlign: 'center', color: canOpen ? C.dim : C.red, marginTop: 6, fontSize: 14 }}>
+          {freeHave >= count ? `Ücretsiz kasa kullanılacak (kalan ${freeHave})` : `Anahtar + Kasa ${money(costFor(count))}${freeHave ? ` (${Math.min(freeHave, count)} ücretsiz)` : ''}`}
+          {canOpen ? `  ·  Bakiye sonra ${money(g.balance - costFor(count))}` : `  ·  Eksik ${money(shortage)}`}
+        </Text>
+      </View>
 
       {/* Yükleme */}
       {load && (
@@ -395,6 +475,17 @@ function CaseDetail({ id }: { id: string }) {
       {/* Eşya bilgisi */}
       <Sheet visible={!!info} onClose={() => setInfo(null)}>
         {info && <SkinInfo skinId={info} c={c} prices={prices} />}
+      </Sheet>
+
+      {/* Bakiye yetersiz: çıkmaz sokak yok */}
+      <Sheet visible={need} onClose={() => setNeed(false)}>
+        <Text style={[st.h1, { textAlign: 'center' }]}>Eksik {money(shortage)}</Text>
+        <Text style={[st.dim, { textAlign: 'center', marginVertical: 8, fontSize: 15 }]}>Bu kasa için bakiyen yetmiyor. Şunları deneyebilirsin:</Text>
+        <View style={{ gap: 8 }}>
+          <Btn kind="gold" label="Envanterden eşya sat" icon="tag" onPress={() => { setNeed(false); setTabNav('inv'); }} />
+          <Btn kind="blue" label="Tıklayıcı ile para kazan" icon="target" onPress={() => { setNeed(false); openGameNav('click'); }} />
+          <Btn kind="ghost" label="Daha ucuz kasa seç" icon="box" onPress={() => { setNeed(false); openCaseNav(null); }} />
+        </View>
       </Sheet>
 
       {/* Nadir liste */}
